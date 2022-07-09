@@ -7,7 +7,9 @@ import (
 	"crypto/x509/pkix"
 	"encoding/xml"
 	"fmt"
+	"io/ioutil"
 	"math/big"
+	"net/http"
 	"net/url"
 	"os"
 	"strings"
@@ -87,7 +89,7 @@ func main() {
 	}
 
 	logr.Println("preparing identity provider")
-	baseUrl, _ := url.Parse("http://127.0.0.1:8000")
+	baseUrl, _ := url.Parse(getEnv("IDP_BASE_URL", "http://127.0.0.1:8000"))
 	idpServer, err := samlidp.New(samlidp.Options{
 		URL:         *baseUrl,
 		Key:         keys.PrivateKey,
@@ -128,6 +130,45 @@ func main() {
 	})
 	if err != nil {
 		logr.Fatalf(err.Error())
+	}
+
+	// wait for startup and register service provider
+	spMeta := getEnv("IDP_SP_METADATA", "")
+	spName := getEnv("IDP_SP_NAME", "serviceprovider")
+	if spMeta != "" {
+		go func(spMetadata string, spName string) {
+			time.Sleep(5 * time.Second)
+			logr.Printf("registering service provider: %s", spName)
+
+			// read saml metadata from url
+			samlResp, err := http.Get(spMeta)
+			if err != nil {
+				logr.Fatalf("unable to fetch service provider metadata: %s", err)
+			}
+			if samlResp.StatusCode != http.StatusOK {
+				data, _ := ioutil.ReadAll(samlResp.Body)
+				logr.Fatalf("error while fetching service provider metadata: %d: %s", samlResp.StatusCode, data)
+			}
+
+			// guess which address we're running on
+			req, err := http.NewRequest("PUT", baseUrl.String()+"/services/"+spName, samlResp.Body)
+			if err != nil {
+				logr.Fatalf("new request: %s", err)
+			}
+
+			// post to self because memorystore only works for users
+			resp, err := http.DefaultClient.Do(req)
+			if err != nil {
+				logr.Fatalf("send request: %s", err)
+			}
+
+			if resp.StatusCode != http.StatusNoContent {
+				data, _ := ioutil.ReadAll(resp.Body)
+				logr.Fatalf("status not ok: %d: %s", resp.StatusCode, data)
+			}
+
+			_ = resp.Body.Close()
+		}(spMeta, spName)
 	}
 
 	logr.Println("starting identity provider server")
