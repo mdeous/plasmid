@@ -20,6 +20,8 @@ import (
 	"github.com/crewjam/saml/samlidp"
 )
 
+const RegisterSPDelay = 2 * time.Second
+
 var logr = logger.DefaultLogger
 
 func readPemFile(path string) ([]byte, error) {
@@ -31,7 +33,7 @@ func readPemFile(path string) ([]byte, error) {
 	return decoded.Bytes, nil
 }
 
-func generateKeys(cfg *IdpCertConfig) (*IdpKeys, error) {
+func loadKeys(cfg *IdpCertConfig) (*IdpKeys, error) {
 	var (
 		privKeyUntyped any
 		ca             *x509.Certificate
@@ -39,8 +41,8 @@ func generateKeys(cfg *IdpCertConfig) (*IdpKeys, error) {
 		err            error
 	)
 
-	// load or generate private key
 	if cfg.KeyFile != "" {
+		// load private key from file
 		logr.Printf("loading identity provider private key from %s", cfg.KeyFile)
 		privKeyBytes, err := readPemFile(cfg.KeyFile)
 		if err != nil {
@@ -50,8 +52,8 @@ func generateKeys(cfg *IdpCertConfig) (*IdpKeys, error) {
 		if err != nil {
 			return nil, fmt.Errorf("unable to parse private key: %v", err)
 		}
-
 	} else {
+		// generate private key
 		logr.Println("generating identity provider private key")
 		privKeyUntyped, err = rsa.GenerateKey(rand.Reader, cfg.KeySize)
 		if err != nil {
@@ -60,8 +62,8 @@ func generateKeys(cfg *IdpCertConfig) (*IdpKeys, error) {
 	}
 	var privKey = privKeyUntyped.(*rsa.PrivateKey)
 
-	// load or generate certificate
 	if cfg.CertFile != "" {
+		// load certificate from file
 		logr.Printf("loading identity provider certificate from %s", cfg.CertFile)
 		certBytes, err := readPemFile(cfg.CertFile)
 		if err != nil {
@@ -72,6 +74,7 @@ func generateKeys(cfg *IdpCertConfig) (*IdpKeys, error) {
 			return nil, fmt.Errorf("unable to parse certificate: %v", err)
 		}
 	} else {
+		// generate CA certificate
 		logr.Println("generating identity provider certificate authority")
 		ca = &x509.Certificate{
 			SerialNumber: big.NewInt(1000),
@@ -90,6 +93,7 @@ func generateKeys(cfg *IdpCertConfig) (*IdpKeys, error) {
 			KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
 			BasicConstraintsValid: true,
 		}
+		// generate certificate
 		logr.Println("generating identity provider certificate")
 		certBytes, err := x509.CreateCertificate(rand.Reader, ca, ca, &privKey.PublicKey, privKey)
 		if err != nil {
@@ -110,7 +114,7 @@ func generateKeys(cfg *IdpCertConfig) (*IdpKeys, error) {
 }
 
 func registerServiceProvider(cfg *IdpConfig) {
-	time.Sleep(2 * time.Second)
+	time.Sleep(RegisterSPDelay)
 
 	// fetch service provider metadata
 	logr.Printf("fetching service provider metadata from '%s'", cfg.ServiceProvider.Metadata)
@@ -152,17 +156,20 @@ func LoggingMiddleware(handler http.Handler) http.Handler {
 func main() {
 	var err error
 
-	logr.Println("loading configuration values from environment")
+	// load configuration from environment variables
+	logr.Println("reading configuration values")
 	cfg, err := getConfig()
 	if err != nil {
 		logr.Fatalf("unable to load configuration: %v", err)
 	}
 
-	keys, err := generateKeys(cfg.CA)
+	// load identity provider keys
+	keys, err := loadKeys(cfg.CA)
 	if err != nil {
 		logr.Fatalln(err.Error())
 	}
 
+	// prepare idp server
 	logr.Println("preparing identity provider")
 	idpServer, err := samlidp.New(samlidp.Options{
 		URL:         *cfg.BaseUrl,
@@ -176,6 +183,7 @@ func main() {
 	}
 	logr.Printf("identity provider metadata available at: %s/metadata", cfg.BaseUrl.String())
 
+	// register user
 	logr.Printf("creating new user: %s", cfg.User.UserName)
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(cfg.User.Password), bcrypt.DefaultCost)
 	if err != nil {
