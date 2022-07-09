@@ -7,12 +7,13 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"fmt"
+	"goji.io/pat"
 	"io/ioutil"
 	"math/big"
 	"net/http"
 	"time"
 
-	"github.com/zenazn/goji"
+	"goji.io"
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/crewjam/saml/logger"
@@ -133,7 +134,17 @@ func registerServiceProvider(cfg *IdpConfig) {
 	_ = resp.Body.Close()
 }
 
+func LoggingMiddleware(handler http.Handler) http.Handler {
+	mw := func(resp http.ResponseWriter, req *http.Request) {
+		logr.Printf("%s %s %s", req.RemoteAddr, req.Method, req.URL.String())
+		handler.ServeHTTP(resp, req)
+	}
+	return http.HandlerFunc(mw)
+}
+
 func main() {
+	var err error
+
 	logr.Println("loading configuration values from environment")
 	cfg, err := getConfig()
 	if err != nil {
@@ -181,7 +192,13 @@ func main() {
 		go registerServiceProvider(cfg)
 	}
 
+	// start server
 	logr.Println("starting identity provider server")
-	goji.Handle("/*", idpServer)
-	goji.Serve()
+	mux := goji.NewMux()
+	mux.Use(LoggingMiddleware)
+	mux.Handle(pat.New("/*"), idpServer)
+	err = http.ListenAndServe(fmt.Sprintf("%s:%d", cfg.ListenHost, cfg.ListenPort), mux)
+	if err != nil {
+		logr.Fatalf("error while starting server: %v", err)
+	}
 }

@@ -40,6 +40,8 @@ type IdpUserConfig struct {
 }
 
 type IdpConfig struct {
+	ListenHost      string
+	ListenPort      int
 	BaseUrl         *url.URL
 	CA              *IdpCertConfig
 	User            *IdpUserConfig
@@ -63,13 +65,25 @@ func getConfig() (*IdpConfig, error) {
 	var err error
 
 	// IdP config
-	baseUrlStr := getEnv("IDP_BASE_URL", "http://127.0.0.1:8000")
-	baseUrl, err := url.Parse(baseUrlStr)
+	listenHost := getEnv("IDP_LISTEN_HOST", "127.0.0.1")
+	listenPortStr := getEnv("IDP_LISTEN_PORT", "8000")
+	listenPort, err := strconv.Atoi(listenPortStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid listen port '%s': %v", listenPortStr, err)
+	}
+	var baseUrl *url.URL
+	baseUrlStr := getEnv("IDP_BASE_URL", "")
+	if baseUrlStr == "" {
+		baseUrlStr = fmt.Sprintf("http://%s:%d", listenHost, listenPort)
+	}
+	baseUrl, err = url.Parse(baseUrlStr)
 	if err != nil {
 		return nil, fmt.Errorf("invalid base url '%s': %v", baseUrlStr, err)
 	}
 	cfg := &IdpConfig{
-		BaseUrl: baseUrl,
+		ListenHost: listenHost,
+		ListenPort: listenPort,
+		BaseUrl:    baseUrl,
 	}
 
 	// CA cert config
