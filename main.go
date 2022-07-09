@@ -10,6 +10,7 @@ import (
 	"io/ioutil"
 	"math/big"
 	"net/http"
+	"net/mail"
 	"net/url"
 	"os"
 	"strings"
@@ -21,6 +22,39 @@ import (
 	"github.com/crewjam/saml/logger"
 	"github.com/crewjam/saml/samlidp"
 )
+
+var logr = logger.DefaultLogger
+
+type SPConfig struct {
+	Name     string
+	Metadata string
+}
+
+type IdpCAConfig struct {
+	Organization string
+	Country      string
+	Province     string
+	Locality     string
+	Address      string
+	PostCode     string
+}
+
+type IdpUserConfig struct {
+	UserName  string
+	Password  string
+	Groups    []string
+	FullName  string
+	GivenName string
+	Surname   string
+	Email     string
+}
+
+type IdpConfig struct {
+	BaseUrl         *url.URL
+	CA              *IdpCAConfig
+	User            *IdpUserConfig
+	ServiceProvider *SPConfig
+}
 
 type IdpKeys struct {
 	Certificate *x509.Certificate
@@ -35,17 +69,76 @@ func getEnv(varName string, defaultVal string) string {
 	return value
 }
 
-func generateKeys() (*IdpKeys, error) {
+func getConfig() (*IdpConfig, error) {
+	var err error
+
+	// IdP config
+	baseUrlStr := getEnv("IDP_BASE_URL", "http://127.0.0.1:8000")
+	baseUrl, err := url.Parse(baseUrlStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid base url '%s': %v", baseUrlStr, err)
+	}
+	cfg := &IdpConfig{
+		BaseUrl: baseUrl,
+	}
+
+	// CA cert config
+	ca := &IdpCAConfig{
+		Organization: getEnv("IDP_CA_ORGANIZATION", "Example Org"),
+		Country:      getEnv("IDP_CA_COUNTRY", "FR"),
+		Province:     getEnv("IDP_CA_PROVINCE", ""),
+		Locality:     getEnv("IDP_CA_LOCALITY", "Paris"),
+		Address:      getEnv("IDP_CA_ADDRESS", ""),
+		PostCode:     getEnv("IDP_CA_POSTCODE", ""),
+	}
+	cfg.CA = ca
+
+	// user config
+	userEmailStr := getEnv("IDP_USER_EMAIL", "admin@example.com")
+	userEmail, err := mail.ParseAddress(userEmailStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid user email '%s': %v", userEmailStr, err)
+	}
+	user := &IdpUserConfig{
+		UserName:  getEnv("IDP_USER_NAME", "admin"),
+		Password:  getEnv("IDP_USER_PASSWORD", "Password123"),
+		Groups:    strings.Split(getEnv("IDP_USER_GROUPS", "Administrators,Users"), ","),
+		FullName:  getEnv("IDP_USER_FULLNAME", "Admin User"),
+		GivenName: getEnv("IDP_USER_GIVENNAME", "Admin"),
+		Surname:   getEnv("IDP_USER_SURNAME", "User"),
+		Email:     userEmail.Address,
+	}
+	cfg.User = user
+
+	// service provider config
+	var spMetadata *url.URL
+	spMetadataStr := getEnv("IDP_SP_METADATA", "")
+	if spMetadataStr != "" {
+		spMetadata, err = url.Parse(spMetadataStr)
+		if err != nil {
+			return nil, fmt.Errorf("invalid service provider metadata url '%s': %v", spMetadataStr, err)
+		}
+	}
+	sp := &SPConfig{
+		Name:     getEnv("IDP_SP_NAME", "serviceprovider"),
+		Metadata: spMetadata.String(),
+	}
+	cfg.ServiceProvider = sp
+
+	return cfg, nil
+}
+
+func generateKeys(cfg *IdpCAConfig) (*IdpKeys, error) {
 	// generate CA
 	ca := &x509.Certificate{
-		SerialNumber: big.NewInt(2019),
+		SerialNumber: big.NewInt(1000),
 		Subject: pkix.Name{
-			Organization:  []string{getEnv("IDP_CA_NAME", "Example Org")},
-			Country:       []string{getEnv("IDP_CA_COUNTRY", "FR")},
-			Province:      []string{getEnv("IDP_CA_PROVINCE", "")},
-			Locality:      []string{getEnv("IDP_CA_LOCALITY", "Paris")},
-			StreetAddress: []string{getEnv("IDP_CA_ADDRESS", "")},
-			PostalCode:    []string{getEnv("IDP_CA_POSTCODE", "")},
+			Organization:  []string{cfg.Organization},
+			Country:       []string{cfg.Country},
+			Province:      []string{cfg.Province},
+			Locality:      []string{cfg.Locality},
+			StreetAddress: []string{cfg.Address},
+			PostalCode:    []string{cfg.PostCode},
 		},
 		NotBefore:             time.Now(),
 		NotAfter:              time.Now().AddDate(1, 0, 0),
@@ -80,18 +173,21 @@ func generateKeys() (*IdpKeys, error) {
 }
 
 func main() {
-	logr := logger.DefaultLogger
+	logr.Println("loading configuration values from environment")
+	cfg, err := getConfig()
+	if err != nil {
+		logr.Fatalf("unable to load configuration: %v", err)
+	}
 
 	logr.Println("generating identity provider keys")
-	keys, err := generateKeys()
+	keys, err := generateKeys(cfg.CA)
 	if err != nil {
 		logr.Fatalln(err.Error())
 	}
 
 	logr.Println("preparing identity provider")
-	baseUrl, _ := url.Parse(getEnv("IDP_BASE_URL", "http://127.0.0.1:8000"))
 	idpServer, err := samlidp.New(samlidp.Options{
-		URL:         *baseUrl,
+		URL:         *cfg.BaseUrl,
 		Key:         keys.PrivateKey,
 		Logger:      logr,
 		Certificate: keys.Certificate,
@@ -106,42 +202,32 @@ func main() {
 	}
 	logr.Printf("identity provider metadata:\n%s", metaXml)
 
-	username := getEnv("IDP_USER_NAME", "admin")
-	password := getEnv("IDP_USER_PASSWORD", "Password123")
-	groups := strings.Split(getEnv("IDP_USER_GROUPS", "Administrators,Users"), ",")
-	fullName := getEnv("IDP_USER_FULLNAME", "Admin User")
-	givenName := getEnv("IDP_USER_GIVENNAME", "Admin")
-	surname := getEnv("IDP_USER_SURNAME", "User")
-	email := getEnv("IDP_USER_EMAIL", "admin@example.com")
-
-	logr.Printf("creating new user: %s", username)
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	logr.Printf("creating new user: %s", cfg.User.UserName)
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(cfg.User.Password), bcrypt.DefaultCost)
 	if err != nil {
 		logr.Fatalf("unable to hash user password: %v", err)
 	}
-	err = idpServer.Store.Put("/users/"+username, samlidp.User{
-		Name:           username,
+	err = idpServer.Store.Put("/users/"+cfg.User.UserName, samlidp.User{
+		Name:           cfg.User.UserName,
 		HashedPassword: hashedPassword,
-		Groups:         groups,
-		Email:          email,
-		CommonName:     fullName,
-		Surname:        surname,
-		GivenName:      givenName,
+		Groups:         cfg.User.Groups,
+		Email:          cfg.User.Email,
+		CommonName:     cfg.User.FullName,
+		Surname:        cfg.User.Surname,
+		GivenName:      cfg.User.GivenName,
 	})
 	if err != nil {
 		logr.Fatalf(err.Error())
 	}
 
 	// wait for startup and register service provider
-	spMeta := getEnv("IDP_SP_METADATA", "")
-	spName := getEnv("IDP_SP_NAME", "serviceprovider")
-	if spMeta != "" {
-		go func(spMetadata string, spName string) {
+	if cfg.ServiceProvider.Metadata != "" {
+		go func() {
 			time.Sleep(5 * time.Second)
-			logr.Printf("registering service provider: %s", spName)
+			logr.Printf("registering service provider: %s", cfg.ServiceProvider.Name)
 
 			// read saml metadata from url
-			samlResp, err := http.Get(spMeta)
+			samlResp, err := http.Get(cfg.ServiceProvider.Metadata)
 			if err != nil {
 				logr.Fatalf("unable to fetch service provider metadata: %s", err)
 			}
@@ -151,7 +237,7 @@ func main() {
 			}
 
 			// guess which address we're running on
-			req, err := http.NewRequest("PUT", baseUrl.String()+"/services/"+spName, samlResp.Body)
+			req, err := http.NewRequest("PUT", cfg.BaseUrl.String()+"/services/"+cfg.ServiceProvider.Name, samlResp.Body)
 			if err != nil {
 				logr.Fatalf("new request: %s", err)
 			}
@@ -168,7 +254,7 @@ func main() {
 			}
 
 			_ = resp.Body.Close()
-		}(spMeta, spName)
+		}()
 	}
 
 	logr.Println("starting identity provider server")
