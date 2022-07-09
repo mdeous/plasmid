@@ -13,6 +13,7 @@ import (
 	"net/mail"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -30,13 +31,15 @@ type SPConfig struct {
 	Metadata string
 }
 
-type IdpCAConfig struct {
-	Organization string
-	Country      string
-	Province     string
-	Locality     string
-	Address      string
-	PostCode     string
+type IdpCertConfig struct {
+	CAOrganization string
+	CACountry      string
+	CAProvince     string
+	CALocality     string
+	CAAddress      string
+	CAPostCode     string
+	CAExpiration   int
+	KeySize        int
 }
 
 type IdpUserConfig struct {
@@ -51,7 +54,7 @@ type IdpUserConfig struct {
 
 type IdpConfig struct {
 	BaseUrl         *url.URL
-	CA              *IdpCAConfig
+	CA              *IdpCertConfig
 	User            *IdpUserConfig
 	ServiceProvider *SPConfig
 }
@@ -83,13 +86,25 @@ func getConfig() (*IdpConfig, error) {
 	}
 
 	// CA cert config
-	ca := &IdpCAConfig{
-		Organization: getEnv("IDP_CA_ORGANIZATION", "Example Org"),
-		Country:      getEnv("IDP_CA_COUNTRY", "FR"),
-		Province:     getEnv("IDP_CA_PROVINCE", ""),
-		Locality:     getEnv("IDP_CA_LOCALITY", "Paris"),
-		Address:      getEnv("IDP_CA_ADDRESS", ""),
-		PostCode:     getEnv("IDP_CA_POSTCODE", ""),
+	caExpStr := getEnv("IDP_CA_EXPIRATION", "1")
+	caExp, err := strconv.Atoi(caExpStr)
+	if err != nil || caExp < 1 {
+		return nil, fmt.Errorf("invalid CA expiration years '%s': %v", caExpStr, err)
+	}
+	keySizeStr := getEnv("IDP_KEY_SIZE", "2048")
+	keySize, err := strconv.Atoi(keySizeStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid key size '%s': %v", keySizeStr, err)
+	}
+	ca := &IdpCertConfig{
+		CAOrganization: getEnv("IDP_CA_ORGANIZATION", "Example Org"),
+		CACountry:      getEnv("IDP_CA_COUNTRY", "FR"),
+		CAProvince:     getEnv("IDP_CA_PROVINCE", ""),
+		CALocality:     getEnv("IDP_CA_LOCALITY", "Paris"),
+		CAAddress:      getEnv("IDP_CA_ADDRESS", ""),
+		CAPostCode:     getEnv("IDP_CA_POSTCODE", ""),
+		CAExpiration:   caExp,
+		KeySize:        keySize,
 	}
 	cfg.CA = ca
 
@@ -128,20 +143,20 @@ func getConfig() (*IdpConfig, error) {
 	return cfg, nil
 }
 
-func generateKeys(cfg *IdpCAConfig) (*IdpKeys, error) {
+func generateKeys(cfg *IdpCertConfig) (*IdpKeys, error) {
 	// generate CA
 	ca := &x509.Certificate{
 		SerialNumber: big.NewInt(1000),
 		Subject: pkix.Name{
-			Organization:  []string{cfg.Organization},
-			Country:       []string{cfg.Country},
-			Province:      []string{cfg.Province},
-			Locality:      []string{cfg.Locality},
-			StreetAddress: []string{cfg.Address},
-			PostalCode:    []string{cfg.PostCode},
+			Organization:  []string{cfg.CAOrganization},
+			Country:       []string{cfg.CACountry},
+			Province:      []string{cfg.CAProvince},
+			Locality:      []string{cfg.CALocality},
+			StreetAddress: []string{cfg.CAAddress},
+			PostalCode:    []string{cfg.CAPostCode},
 		},
 		NotBefore:             time.Now(),
-		NotAfter:              time.Now().AddDate(1, 0, 0),
+		NotAfter:              time.Now().AddDate(cfg.CAExpiration, 0, 0),
 		IsCA:                  true,
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
 		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
@@ -149,7 +164,7 @@ func generateKeys(cfg *IdpCAConfig) (*IdpKeys, error) {
 	}
 
 	// generate private key
-	privKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	privKey, err := rsa.GenerateKey(rand.Reader, cfg.KeySize)
 	if err != nil {
 		return nil, fmt.Errorf("unable to generate private key: %v", err)
 	}
