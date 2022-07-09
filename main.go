@@ -223,10 +223,10 @@ func main() {
 	// wait for startup and register service provider
 	if cfg.ServiceProvider.Metadata != "" {
 		go func() {
-			time.Sleep(5 * time.Second)
-			logr.Printf("registering service provider: %s", cfg.ServiceProvider.Name)
+			time.Sleep(2 * time.Second)
 
-			// read saml metadata from url
+			// fetch service provider metadata
+			logr.Printf("fetching service provider metadata from '%s'", cfg.ServiceProvider.Metadata)
 			samlResp, err := http.Get(cfg.ServiceProvider.Metadata)
 			if err != nil {
 				logr.Fatalf("unable to fetch service provider metadata: %s", err)
@@ -236,21 +236,19 @@ func main() {
 				logr.Fatalf("error while fetching service provider metadata: %d: %s", samlResp.StatusCode, data)
 			}
 
-			// guess which address we're running on
+			// register service provider
+			logr.Printf("registering service provider '%s'", cfg.ServiceProvider.Name)
 			req, err := http.NewRequest("PUT", cfg.BaseUrl.String()+"/services/"+cfg.ServiceProvider.Name, samlResp.Body)
 			if err != nil {
-				logr.Fatalf("new request: %s", err)
+				logr.Fatalf("unable to create registration request: %v", err)
 			}
-
-			// post to self because memorystore only works for users
 			resp, err := http.DefaultClient.Do(req)
 			if err != nil {
-				logr.Fatalf("send request: %s", err)
+				logr.Fatalf("error while registering service provider: %v", err)
 			}
-
 			if resp.StatusCode != http.StatusNoContent {
 				data, _ := ioutil.ReadAll(resp.Body)
-				logr.Fatalf("status not ok: %d: %s", resp.StatusCode, data)
+				logr.Fatalf("unexpected response status code (%d): %s", resp.StatusCode, data)
 			}
 
 			_ = resp.Body.Close()
