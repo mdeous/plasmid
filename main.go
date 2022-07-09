@@ -5,7 +5,7 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"encoding/xml"
+	"encoding/pem"
 	"fmt"
 	"io/ioutil"
 	"math/big"
@@ -23,45 +23,74 @@ var logr = logger.DefaultLogger
 
 func generateKeys(cfg *IdpCertConfig) (*IdpKeys, error) {
 	var (
-		ca      *x509.Certificate
-		privKey *rsa.PrivateKey
-		cert    *x509.Certificate
-		err     error
+		privKeyUntyped any
+		ca             *x509.Certificate
+		cert           *x509.Certificate
+		err            error
 	)
 
-	// generate CA
-	ca = &x509.Certificate{
-		SerialNumber: big.NewInt(1000),
-		Subject: pkix.Name{
-			Organization:  []string{cfg.CAOrganization},
-			Country:       []string{cfg.CACountry},
-			Province:      []string{cfg.CAProvince},
-			Locality:      []string{cfg.CALocality},
-			StreetAddress: []string{cfg.CAAddress},
-			PostalCode:    []string{cfg.CAPostCode},
-		},
-		NotBefore:             time.Now(),
-		NotAfter:              time.Now().AddDate(cfg.CAExpiration, 0, 0),
-		IsCA:                  true,
-		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
-		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
-		BasicConstraintsValid: true,
-	}
+	// load or generate private key
+	if cfg.KeyFile != "" {
+		logr.Printf("loading identity provider private key from %s", cfg.KeyFile)
+		keyBytes, err := ioutil.ReadFile(cfg.KeyFile)
+		if err != nil {
+			return nil, fmt.Errorf("could not load private key from %s: %v", cfg.KeyFile, err)
+		}
+		keyDec, _ := pem.Decode(keyBytes)
+		privKeyUntyped, err = x509.ParsePKCS1PrivateKey(keyDec.Bytes)
+		if err != nil {
+			return nil, fmt.Errorf("unable to parse private key: %v", err)
+		}
 
-	// generate private key
-	privKey, err = rsa.GenerateKey(rand.Reader, cfg.KeySize)
-	if err != nil {
-		return nil, fmt.Errorf("unable to generate private key: %v", err)
+	} else {
+		logr.Println("generating identity provider private key")
+		privKeyUntyped, err = rsa.GenerateKey(rand.Reader, cfg.KeySize)
+		if err != nil {
+			return nil, fmt.Errorf("unable to generate private key: %v", err)
+		}
 	}
+	var privKey = privKeyUntyped.(*rsa.PrivateKey)
 
-	// generate certificate
-	certBytes, err := x509.CreateCertificate(rand.Reader, ca, ca, &privKey.PublicKey, privKey)
-	if err != nil {
-		return nil, fmt.Errorf("unable to generate certificate: %v", err)
-	}
-	cert, err = x509.ParseCertificate(certBytes)
-	if err != nil {
-		return nil, fmt.Errorf("unable to parse certificate: %v", err)
+	// load or generate certificate
+	if cfg.CertFile != "" {
+		logr.Printf("loading identity provider certificate from %s", cfg.CertFile)
+		certBytes, err := ioutil.ReadFile(cfg.CertFile)
+		if err != nil {
+			return nil, fmt.Errorf("unable to load certificate from %s: %v", cfg.CertFile, err)
+		}
+		certDec, _ := pem.Decode(certBytes)
+		cert, err = x509.ParseCertificate(certDec.Bytes)
+		if err != nil {
+			return nil, fmt.Errorf("unable to parse certificate: %v", err)
+		}
+	} else {
+		logr.Println("generating identity provider certificate authority")
+		ca = &x509.Certificate{
+			SerialNumber: big.NewInt(1000),
+			Subject: pkix.Name{
+				Organization:  []string{cfg.CAOrganization},
+				Country:       []string{cfg.CACountry},
+				Province:      []string{cfg.CAProvince},
+				Locality:      []string{cfg.CALocality},
+				StreetAddress: []string{cfg.CAAddress},
+				PostalCode:    []string{cfg.CAPostCode},
+			},
+			NotBefore:             time.Now(),
+			NotAfter:              time.Now().AddDate(cfg.CAExpiration, 0, 0),
+			IsCA:                  true,
+			ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
+			KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
+			BasicConstraintsValid: true,
+		}
+		logr.Println("generating identity provider certificate")
+		certBytes, err := x509.CreateCertificate(rand.Reader, ca, ca, &privKey.PublicKey, privKey)
+		if err != nil {
+			return nil, fmt.Errorf("unable to generate certificate: %v", err)
+		}
+		cert, err = x509.ParseCertificate(certBytes)
+		if err != nil {
+			return nil, fmt.Errorf("unable to parse certificate: %v", err)
+		}
 	}
 
 	// build keys struct
@@ -111,7 +140,6 @@ func main() {
 		logr.Fatalf("unable to load configuration: %v", err)
 	}
 
-	logr.Println("generating identity provider keys")
 	keys, err := generateKeys(cfg.CA)
 	if err != nil {
 		logr.Fatalln(err.Error())
@@ -128,12 +156,7 @@ func main() {
 	if err != nil {
 		logr.Fatalf(err.Error())
 	}
-	metaXml, err := xml.MarshalIndent(idpServer.IDP.Metadata(), "", "    ")
-	if err != nil {
-		logr.Fatalf("unable to marshal metadata: %v", err)
-	}
 	logr.Printf("identity provider metadata available at: %s/metadata", cfg.BaseUrl.String())
-	logr.Printf("metadata content:\n%s", metaXml)
 
 	logr.Printf("creating new user: %s", cfg.User.UserName)
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(cfg.User.Password), bcrypt.DefaultCost)

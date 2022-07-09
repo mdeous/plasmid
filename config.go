@@ -24,6 +24,8 @@ type IdpCertConfig struct {
 	CAAddress      string
 	CAPostCode     string
 	CAExpiration   int
+	CertFile       string
+	KeyFile        string
 	KeySize        int
 }
 
@@ -89,6 +91,8 @@ func getConfig() (*IdpConfig, error) {
 		CAAddress:      getEnv("IDP_CA_ADDRESS", ""),
 		CAPostCode:     getEnv("IDP_CA_POSTCODE", ""),
 		CAExpiration:   caExp,
+		CertFile:       getEnv("IDP_CERT_FILE", ""),
+		KeyFile:        getEnv("IDP_KEY_FILE", ""),
 		KeySize:        keySize,
 	}
 	cfg.CA = ca
