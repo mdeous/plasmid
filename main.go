@@ -22,6 +22,15 @@ import (
 
 var logr = logger.DefaultLogger
 
+func readPemFile(path string) ([]byte, error) {
+	pemBytes, err := ioutil.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	decoded, _ := pem.Decode(pemBytes)
+	return decoded.Bytes, nil
+}
+
 func generateKeys(cfg *IdpCertConfig) (*IdpKeys, error) {
 	var (
 		privKeyUntyped any
@@ -33,12 +42,11 @@ func generateKeys(cfg *IdpCertConfig) (*IdpKeys, error) {
 	// load or generate private key
 	if cfg.KeyFile != "" {
 		logr.Printf("loading identity provider private key from %s", cfg.KeyFile)
-		keyBytes, err := ioutil.ReadFile(cfg.KeyFile)
+		privKeyBytes, err := readPemFile(cfg.KeyFile)
 		if err != nil {
-			return nil, fmt.Errorf("could not load private key from %s: %v", cfg.KeyFile, err)
+			return nil, fmt.Errorf("unable to load private key from '%s': %v", cfg.KeyFile, err)
 		}
-		keyDec, _ := pem.Decode(keyBytes)
-		privKeyUntyped, err = x509.ParsePKCS1PrivateKey(keyDec.Bytes)
+		privKeyUntyped, err = x509.ParsePKCS1PrivateKey(privKeyBytes)
 		if err != nil {
 			return nil, fmt.Errorf("unable to parse private key: %v", err)
 		}
@@ -55,12 +63,11 @@ func generateKeys(cfg *IdpCertConfig) (*IdpKeys, error) {
 	// load or generate certificate
 	if cfg.CertFile != "" {
 		logr.Printf("loading identity provider certificate from %s", cfg.CertFile)
-		certBytes, err := ioutil.ReadFile(cfg.CertFile)
+		certBytes, err := readPemFile(cfg.CertFile)
 		if err != nil {
-			return nil, fmt.Errorf("unable to load certificate from %s: %v", cfg.CertFile, err)
+			return nil, fmt.Errorf("unable to load certificate from '%s': %v", cfg.CertFile, err)
 		}
-		certDec, _ := pem.Decode(certBytes)
-		cert, err = x509.ParseCertificate(certDec.Bytes)
+		cert, err = x509.ParseCertificate(certBytes)
 		if err != nil {
 			return nil, fmt.Errorf("unable to parse certificate: %v", err)
 		}
