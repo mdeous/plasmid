@@ -1,9 +1,10 @@
-package main
+package config
 
 import (
-	"crypto/rsa"
-	"crypto/x509"
 	"fmt"
+	"github.com/creasty/defaults"
+	"gopkg.in/yaml.v3"
+	"io/ioutil"
 	"net/mail"
 	"net/url"
 	"os"
@@ -11,47 +12,7 @@ import (
 	"strings"
 )
 
-type SPConfig struct {
-	Name     string
-	Metadata string
-}
-
-type IdpCertConfig struct {
-	CAOrganization string
-	CACountry      string
-	CAProvince     string
-	CALocality     string
-	CAAddress      string
-	CAPostCode     string
-	CAExpiration   int
-	CertFile       string
-	KeyFile        string
-	KeySize        int
-}
-
-type IdpUserConfig struct {
-	UserName  string
-	Password  string
-	Groups    []string
-	FullName  string
-	GivenName string
-	Surname   string
-	Email     string
-}
-
-type IdpConfig struct {
-	ListenHost      string
-	ListenPort      int
-	BaseUrl         *url.URL
-	CA              *IdpCertConfig
-	User            *IdpUserConfig
-	ServiceProvider *SPConfig
-}
-
-type IdpKeys struct {
-	Certificate *x509.Certificate
-	PrivateKey  *rsa.PrivateKey
-}
+// HOME MADE
 
 func getEnv(varName string, defaultVal string) string {
 	value, exists := os.LookupEnv(varName)
@@ -61,8 +22,28 @@ func getEnv(varName string, defaultVal string) string {
 	return value
 }
 
-func getConfig() (*IdpConfig, error) {
-	var err error
+func Load(filename string) (*Config, error) {
+	var (
+		cfg *Config
+		err error
+	)
+
+	if filename != "" {
+		configContent, err := ioutil.ReadFile(filename)
+		if err != nil {
+			return nil, err
+		}
+		err = yaml.Unmarshal(configContent, cfg)
+		if err != nil {
+			return nil, err
+		}
+		err = defaults.Set(cfg)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		cfg = &Config{}
+	}
 
 	// IdP config
 	listenHost := getEnv("IDP_LISTEN_HOST", "127.0.0.1")
@@ -80,11 +61,9 @@ func getConfig() (*IdpConfig, error) {
 	if err != nil {
 		return nil, fmt.Errorf("invalid base url '%s': %v", baseUrlStr, err)
 	}
-	cfg := &IdpConfig{
-		ListenHost: listenHost,
-		ListenPort: listenPort,
-		BaseUrl:    baseUrl,
-	}
+	cfg.Host = listenHost
+	cfg.Port = listenPort
+	cfg.BaseUrl = *baseUrl
 
 	// CA cert config
 	caExpStr := getEnv("IDP_CA_EXPIRATION", "1")
@@ -97,7 +76,7 @@ func getConfig() (*IdpConfig, error) {
 	if err != nil {
 		return nil, fmt.Errorf("invalid key size '%s': %v", keySizeStr, err)
 	}
-	ca := &IdpCertConfig{
+	ca := Certificate{
 		CAOrganization: getEnv("IDP_CA_ORGANIZATION", "Example Org"),
 		CACountry:      getEnv("IDP_CA_COUNTRY", "FR"),
 		CAProvince:     getEnv("IDP_CA_PROVINCE", ""),
@@ -117,7 +96,7 @@ func getConfig() (*IdpConfig, error) {
 	if err != nil {
 		return nil, fmt.Errorf("invalid user email '%s': %v", userEmailStr, err)
 	}
-	user := &IdpUserConfig{
+	user := User{
 		UserName:  getEnv("IDP_USER_NAME", "admin"),
 		Password:  getEnv("IDP_USER_PASSWORD", "Password123"),
 		Groups:    strings.Split(getEnv("IDP_USER_GROUPS", "Administrators,Users"), ","),
@@ -129,17 +108,17 @@ func getConfig() (*IdpConfig, error) {
 	cfg.User = user
 
 	// service provider config
-	var spMetadata *url.URL
-	spMetadataStr := getEnv("IDP_SP_METADATA", "")
-	if spMetadataStr != "" {
-		spMetadata, err = url.Parse(spMetadataStr)
+	spMetadata := getEnv("IDP_SP_METADATA", "")
+	if spMetadata != "" {
+		spMetadataParsed, err := url.Parse(spMetadata)
 		if err != nil {
-			return nil, fmt.Errorf("invalid service provider metadata url '%s': %v", spMetadataStr, err)
+			return nil, fmt.Errorf("invalid service provider metadata url '%s': %v", spMetadata, err)
 		}
+		spMetadata = spMetadataParsed.String()
 	}
-	sp := &SPConfig{
+	sp := ServiceProvider{
 		Name:     getEnv("IDP_SP_NAME", "serviceprovider"),
-		Metadata: spMetadata.String(),
+		Metadata: spMetadata,
 	}
 	cfg.ServiceProvider = sp
 
