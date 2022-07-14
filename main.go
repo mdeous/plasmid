@@ -6,6 +6,8 @@ import (
 	"github.com/mdeous/plasmid/pkg/config"
 	"github.com/mdeous/plasmid/pkg/server"
 	"github.com/mdeous/plasmid/pkg/utils"
+	"github.com/spf13/viper"
+	"net/url"
 	"time"
 
 	"github.com/crewjam/saml/logger"
@@ -24,31 +26,40 @@ func main() {
 
 	// load configuration from environment variables
 	logr.Println("reading configuration values")
-	cfg, err := config.Load("")
+	err = config.Load()
 	if err != nil {
 		logr.Fatalf("unable to load configuration: %v", err)
 	}
 
 	// load or generate identity provider keys
 
-	if cfg.CA.KeyFile != "" {
-		privKey, err = utils.LoadPrivateKey(cfg.CA.KeyFile)
+	if viper.GetString(config.CertKeyFile) != "" {
+		privKey, err = utils.LoadPrivateKey(viper.GetString(config.CertKeyFile))
 		if err != nil {
 			logr.Fatalf(err.Error())
 		}
 	} else {
-		privKey, err = utils.GeneratePrivateKey(&cfg.CA)
+		privKey, err = utils.GeneratePrivateKey(viper.GetInt(config.CertKeySize))
 		if err != nil {
 			logr.Fatalf(err.Error())
 		}
 	}
-	if cfg.CA.CertFile != "" {
-		cert, err = utils.LoadCertificate(cfg.CA.CertFile)
+	if viper.GetString(config.CertCertificateFile) != "" {
+		cert, err = utils.LoadCertificate(viper.GetString(config.CertCertificateFile))
 		if err != nil {
 			logr.Fatalf(err.Error())
 		}
 	} else {
-		cert, err = utils.GenerateCertificate(&cfg.CA, privKey)
+		cert, err = utils.GenerateCertificate(
+			privKey,
+			viper.GetString(config.CertCaOrg),
+			viper.GetString(config.CertCaCountry),
+			viper.GetString(config.CertCaState),
+			viper.GetString(config.CertCaLocality),
+			viper.GetString(config.CertCaAddress),
+			viper.GetString(config.CertCaPostcode),
+			viper.GetInt(config.CertCaExpYears),
+		)
 		if err != nil {
 			logr.Fatalf(err.Error())
 		}
@@ -56,21 +67,41 @@ func main() {
 
 	// prepare idp server
 	logr.Println("setting up identity provider server")
-	idp, err := server.New(cfg.Host, cfg.Port, &cfg.BaseUrl, privKey, cert)
+	baseUrl, err := url.Parse(viper.GetString(config.BaseUrl))
+	if err != nil {
+		logr.Fatalf("invalid base URL '%s': %v", viper.GetString(config.BaseUrl), err)
+	}
+	idp, err := server.New(
+		viper.GetString(config.Host),
+		viper.GetInt(config.Port),
+		baseUrl,
+		privKey,
+		cert,
+	)
 	if err != nil {
 		logr.Fatalf(err.Error())
 	}
 
 	// register user
-	err = idp.RegisterUser(&cfg.User)
+	err = idp.RegisterUser(
+		viper.GetString(config.UserUsername),
+		viper.GetString(config.UserPassword),
+		viper.GetStringSlice(config.UserGroups),
+		viper.GetString(config.UserEmail),
+		viper.GetString(config.UserFirstName),
+		viper.GetString(config.UserLastName),
+	)
 	if err != nil {
 		logr.Fatalf(err.Error())
 	}
 
-	if cfg.ServiceProvider.Metadata != "" {
+	if viper.GetString(config.SPMetadata) != "" {
 		go func() {
 			time.Sleep(RegisterSPDelay)
-			err = idp.RegisterServiceProvider(cfg.ServiceProvider.Name, cfg.ServiceProvider.Metadata)
+			err = idp.RegisterServiceProvider(
+				viper.GetString(config.SPName),
+				viper.GetString(config.SPMetadata),
+			)
 			if err != nil {
 				logr.Fatalf(err.Error())
 			}
