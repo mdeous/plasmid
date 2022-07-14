@@ -7,7 +7,6 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"fmt"
-	"github.com/mdeous/plasmid/pkg/config"
 	"io/ioutil"
 	"math/big"
 	"time"
@@ -46,28 +45,37 @@ func LoadCertificate(filename string) (*x509.Certificate, error) {
 	return cert, nil
 }
 
-func GeneratePrivateKey(cfg *config.Certificate) (*rsa.PrivateKey, error) {
-	privKey, err := rsa.GenerateKey(rand.Reader, cfg.KeySize)
+func GeneratePrivateKey(keySize int) (*rsa.PrivateKey, error) {
+	privKey, err := rsa.GenerateKey(rand.Reader, keySize)
 	if err != nil {
 		return nil, fmt.Errorf("unable to generate private key: %v", err)
 	}
 	return privKey, nil
 }
 
-func GenerateCertificate(cfg *config.Certificate, key *rsa.PrivateKey) (*x509.Certificate, error) {
+func GenerateCertificate(
+	key *rsa.PrivateKey,
+	orgName string,
+	country string,
+	state string,
+	locality string,
+	address string,
+	postCode string,
+	expirationYears int,
+) (*x509.Certificate, error) {
 	// generate CA certificate
 	ca := &x509.Certificate{
 		SerialNumber: big.NewInt(1000),
 		Subject: pkix.Name{
-			Organization:  []string{cfg.CAOrganization},
-			Country:       []string{cfg.CACountry},
-			Province:      []string{cfg.CAProvince},
-			Locality:      []string{cfg.CALocality},
-			StreetAddress: []string{cfg.CAAddress},
-			PostalCode:    []string{cfg.CAPostCode},
+			Organization:  []string{orgName},
+			Country:       []string{country},
+			Province:      []string{state},
+			Locality:      []string{locality},
+			StreetAddress: []string{address},
+			PostalCode:    []string{postCode},
 		},
 		NotBefore:             time.Now(),
-		NotAfter:              time.Now().AddDate(cfg.CAExpiration, 0, 0),
+		NotAfter:              time.Now().AddDate(expirationYears, 0, 0),
 		IsCA:                  true,
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
 		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,

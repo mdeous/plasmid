@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"github.com/crewjam/saml/logger"
 	"github.com/crewjam/saml/samlidp"
-	"github.com/mdeous/plasmid/pkg/config"
 	goji "goji.io"
 	"goji.io/pat"
 	"golang.org/x/crypto/bcrypt"
@@ -60,23 +59,30 @@ func (p *Plasmid) RegisterServiceProvider(spName string, spMetaUrl string) error
 	return nil
 }
 
-func (p *Plasmid) RegisterUser(user *config.User) error {
-	p.logger.Printf("registering user '%s'", user.UserName)
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
+func (p *Plasmid) RegisterUser(
+	username string,
+	password string,
+	groups []string,
+	email string,
+	firstName string,
+	lastName string,
+) error {
+	p.logger.Printf("registering user '%s'", username)
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
-		return fmt.Errorf("unable to hash user '%s' password '%s': %v", user.UserName, user.Password, err)
+		return fmt.Errorf("unable to hash user '%s' password: %v", username, err)
 	}
-	err = p.IDP.Store.Put("/users/"+user.UserName, samlidp.User{
-		Name:           user.UserName,
+	err = p.IDP.Store.Put("/users/"+username, samlidp.User{
+		Name:           username,
 		HashedPassword: hashedPassword,
-		Groups:         user.Groups,
-		Email:          user.Email,
-		CommonName:     user.FullName,
-		Surname:        user.Surname,
-		GivenName:      user.GivenName,
+		Groups:         groups,
+		Email:          email,
+		GivenName:      firstName,
+		Surname:        lastName,
+		CommonName:     fmt.Sprintf("%s %s", firstName, lastName),
 	})
 	if err != nil {
-		return fmt.Errorf("unable to register user '%s': %v", user.UserName, err)
+		return fmt.Errorf("unable to register user '%s': %v", username, err)
 	}
 	return nil
 }
