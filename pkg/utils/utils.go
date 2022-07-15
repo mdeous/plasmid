@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"bytes"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
@@ -9,8 +10,14 @@ import (
 	"fmt"
 	"io/ioutil"
 	"math/big"
+	"os"
 	"time"
 )
+
+type PemType string
+
+const CertificateType PemType = "CERTIFICATE"
+const PrivateKeyType PemType = "RSA PRIVATE KEY"
 
 func readPemFile(path string) ([]byte, error) {
 	pemBytes, err := ioutil.ReadFile(path)
@@ -19,6 +26,34 @@ func readPemFile(path string) ([]byte, error) {
 	}
 	decoded, _ := pem.Decode(pemBytes)
 	return decoded.Bytes, nil
+}
+
+func writePemFile(path string, content []byte, pemType PemType) error {
+	var err error
+	// encode content to PEM
+	pemBytes := new(bytes.Buffer)
+	err = pem.Encode(pemBytes, &pem.Block{
+		Type:  string(pemType),
+		Bytes: content,
+	})
+	if err != nil {
+		return err
+	}
+	// write PEM file to disk
+	err = os.WriteFile(path, pemBytes.Bytes(), 0600)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func WriteKeyToPem(key *rsa.PrivateKey, path string) error {
+	keyBytes := x509.MarshalPKCS1PrivateKey(key)
+	return writePemFile(path, keyBytes, PrivateKeyType)
+}
+
+func WriteCertificateToPem(cert *x509.Certificate, path string) error {
+	return writePemFile(path, cert.Raw, CertificateType)
 }
 
 func LoadPrivateKey(filename string) (*rsa.PrivateKey, error) {
