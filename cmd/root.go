@@ -1,10 +1,14 @@
 package cmd
 
 import (
+	"github.com/crewjam/saml/logger"
+	"github.com/mdeous/plasmid/pkg/config"
 	"os"
 
 	"github.com/spf13/cobra"
 )
+
+var logr = logger.DefaultLogger
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -22,4 +26,5 @@ func Execute() {
 }
 
 func init() {
+	cobra.OnInitialize(config.Init)
 }

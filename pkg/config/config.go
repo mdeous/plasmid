@@ -53,7 +53,7 @@ var DefaultValues = map[string]interface{}{
 	UserGroups:     []string{"Administrators", "Users"},
 }
 
-func Load() error {
+func Init() {
 	// load from file if it exists
 	viper.SetConfigName(DefaultFile)
 	viper.SetConfigType(FileFormat)
@@ -61,7 +61,7 @@ func Load() error {
 	err := viper.ReadInConfig()
 	if err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-			return err
+			panic(err)
 		}
 	}
 
@@ -74,6 +74,4 @@ func Load() error {
 	for k, v := range DefaultValues {
 		viper.SetDefault(k, v)
 	}
-
-	return nil
 }

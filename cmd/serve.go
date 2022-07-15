@@ -3,7 +3,6 @@ package cmd
 import (
 	"crypto/rsa"
 	"crypto/x509"
-	"github.com/crewjam/saml/logger"
 	"github.com/mdeous/plasmid/pkg/config"
 	"github.com/mdeous/plasmid/pkg/server"
 	"github.com/mdeous/plasmid/pkg/utils"
@@ -16,8 +15,6 @@ import (
 
 const RegisterSPDelay = 2 * time.Second
 
-var logr = logger.DefaultLogger
-
 // serveCmd represents the serve command
 var serveCmd = &cobra.Command{
 	Use:   "serve",
@@ -29,15 +26,7 @@ var serveCmd = &cobra.Command{
 			err     error
 		)
 
-		// load configuration from environment variables
-		logr.Println("reading configuration values")
-		err = config.Load()
-		if err != nil {
-			logr.Fatalf("unable to load configuration: %v", err)
-		}
-
 		// load or generate identity provider keys
-
 		if viper.GetString(config.CertKeyFile) != "" {
 			privKey, err = utils.LoadPrivateKey(viper.GetString(config.CertKeyFile))
 			if err != nil {
@@ -122,14 +111,12 @@ var serveCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(serveCmd)
-
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// serveCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// serveCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	serveCmd.Flags().StringP("host", "H", config.DefaultValues[config.Host].(string), "host to listen on")
+	if err := viper.BindPFlag(config.Host, serveCmd.Flags().Lookup("host")); err != nil {
+		logr.Fatalf(err.Error())
+	}
+	serveCmd.Flags().IntP("port", "P", config.DefaultValues[config.Port].(int), "port to listen on")
+	if err := viper.BindPFlag(config.Port, serveCmd.Flags().Lookup("port")); err != nil {
+		logr.Fatalf(err.Error())
+	}
 }
