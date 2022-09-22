@@ -9,7 +9,7 @@ import (
 	goji "goji.io"
 	"goji.io/pat"
 	"golang.org/x/crypto/bcrypt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"net/url"
@@ -36,7 +36,7 @@ func (p *Plasmid) RegisterServiceProvider(spName string, spMetaUrl string) error
 		return err
 	}
 	if samlResp.StatusCode != http.StatusOK {
-		data, _ := ioutil.ReadAll(samlResp.Body)
+		data, _ := io.ReadAll(samlResp.Body)
 		return fmt.Errorf("error while fetching service provider metadata: %d: %s", samlResp.StatusCode, data)
 	}
 
@@ -51,7 +51,7 @@ func (p *Plasmid) RegisterServiceProvider(spName string, spMetaUrl string) error
 		return err
 	}
 	if resp.StatusCode != http.StatusNoContent {
-		data, _ := ioutil.ReadAll(resp.Body)
+		data, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("unexpected response status code (%d): %s", resp.StatusCode, data)
 	}
 
