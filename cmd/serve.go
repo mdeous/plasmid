@@ -119,4 +119,8 @@ func init() {
 	if err := viper.BindPFlag(config.Port, serveCmd.Flags().Lookup("port")); err != nil {
 		logr.Fatalf(err.Error())
 	}
+	serveCmd.Flags().StringP("url", "u", config.DefaultValues[config.BaseUrl].(string), "base url on which idp is exposed")
+	if err := viper.BindPFlag(config.BaseUrl, serveCmd.Flags().Lookup("url")); err != nil {
+		logr.Fatalf(err.Error())
+	}
 }
