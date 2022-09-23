@@ -19,11 +19,12 @@ import (
 const RegisterSPDelay = 2 * time.Second
 
 type Plasmid struct {
-	Host    string
-	Port    int
-	BaseUrl *url.URL
-	IDP     *samlidp.Server
-	logger  *log.Logger
+	Host        string
+	Port        int
+	IDP         *samlidp.Server
+	logger      *log.Logger
+	internalUrl string
+	externalUrl string
 }
 
 func (p *Plasmid) RegisterServiceProvider(spName string, spMetaUrl string) error {
@@ -42,7 +43,7 @@ func (p *Plasmid) RegisterServiceProvider(spName string, spMetaUrl string) error
 
 	// register service provider
 	p.logger.Printf("registering service provider '%s'", spName)
-	req, err := http.NewRequest("PUT", p.BaseUrl.String()+"/services/"+spName, samlResp.Body)
+	req, err := http.NewRequest("PUT", p.internalUrl+"/services/"+spName, samlResp.Body)
 	if err != nil {
 		return err
 	}
@@ -97,6 +98,7 @@ func (p *Plasmid) LoggingMiddleware(handler http.Handler) http.Handler {
 
 func (p *Plasmid) Serve() error {
 	p.logger.Printf("listening on %s:%d", p.Host, p.Port)
+	p.logger.Printf("external url: %s", p.externalUrl)
 	mux := goji.NewMux()
 	mux.Use(p.LoggingMiddleware)
 	mux.Handle(pat.New("/*"), p.IDP)
@@ -119,12 +121,17 @@ func New(host string, port int, baseUrl *url.URL, privKey *rsa.PrivateKey, cert 
 		return nil, err
 	}
 
+	u := new(url.URL)
+	u.Scheme = "http"
+	u.Host = fmt.Sprintf("%s:%d", host, port)
+
 	plasmid := &Plasmid{
-		Host:    host,
-		Port:    port,
-		BaseUrl: baseUrl,
-		IDP:     idpServer,
-		logger:  logger.DefaultLogger,
+		Host:        host,
+		Port:        port,
+		IDP:         idpServer,
+		logger:      logger.DefaultLogger,
+		internalUrl: u.String(),
+		externalUrl: baseUrl.String(),
 	}
 	return plasmid, nil
 }
