@@ -28,7 +28,7 @@ const (
 	UserPassword        = "user.password"
 	UserFirstName       = "user.given_name"
 	UserLastName        = "user.surname"
-	UserEmail           = "user.mail"
+	UserEmail           = "user.email"
 	UserGroups          = "user.groups"
 	SPName              = "sp.name"
 	SPMetadata          = "sp.metadata"
