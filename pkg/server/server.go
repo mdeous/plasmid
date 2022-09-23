@@ -14,6 +14,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 )
 
@@ -100,7 +101,9 @@ func (p *Plasmid) RegisterUser(
 
 func (p *Plasmid) LoggingMiddleware(handler http.Handler) http.Handler {
 	mw := func(resp http.ResponseWriter, req *http.Request) {
-		p.logger.Printf("%s %s %s", req.RemoteAddr, req.Method, req.URL.String())
+		reqUrl := strings.Replace(req.URL.String(), "\n", "", -1)
+		reqUrl = strings.Replace(reqUrl, "\r", "", -1)
+		p.logger.Printf("%s %s %s", req.RemoteAddr, req.Method, reqUrl)
 		handler.ServeHTTP(resp, req)
 	}
 	return http.HandlerFunc(mw)
