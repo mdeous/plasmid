@@ -1,0 +1,26 @@
+host: 127.0.0.1
+port: 8000
+base_url: http://127.0.0.1:8000
+cert:
+  ca_org: Example Org
+  ca_country: FR
+  ca_state: Ile de France
+  ca_locality: Paris
+  ca_postcode: 75001
+  ca_exp_years: 1
+  certificate_file: cert.pem
+  key_file: key.pem
+  key_size: 2048
+user:
+  username: admin
+  password: Password123
+  full_name: Admin User
+  given_name: Admin
+  surname: User
+  email: admin@example.com
+  groups:
+    - Administrators
+    - Users
+sp:
+  name: samltest
+  metadata: https://samltest.id/saml/sp
