@@ -8,12 +8,14 @@ import (
 	"github.com/mdeous/plasmid/pkg/utils"
 	"github.com/spf13/viper"
 	"net/url"
+	"os"
 	"time"
 
 	"github.com/spf13/cobra"
 )
 
 const RegisterSPDelay = 2 * time.Second
+const IdpMetadataFile = "idp-metadata.xml"
 
 // serveCmd represents the serve command
 var serveCmd = &cobra.Command{
@@ -89,9 +91,23 @@ var serveCmd = &cobra.Command{
 			logr.Fatalf(err.Error())
 		}
 
+		// save idp metadata to disk
+		meta, err := idp.Metadata()
+		if err != nil {
+			logr.Fatalf(err.Error())
+		}
+		err = os.WriteFile(IdpMetadataFile, meta, 0644)
+		if err != nil {
+			logr.Fatalf("failed to write identity provider metadata file: %v", err)
+		} else {
+			logr.Println("identity provider metadata saved to", IdpMetadataFile)
+		}
+
+		// register service provider after the idp has started
 		if viper.GetString(config.SPMetadata) != "" {
 			go func() {
 				time.Sleep(RegisterSPDelay)
+				// TODO: allow to pass SP metadata as a file
 				err = idp.RegisterServiceProvider(
 					viper.GetString(config.SPName),
 					viper.GetString(config.SPMetadata),

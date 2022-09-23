@@ -3,6 +3,7 @@ package server
 import (
 	"crypto/rsa"
 	"crypto/x509"
+	"encoding/xml"
 	"fmt"
 	"github.com/crewjam/saml/logger"
 	"github.com/crewjam/saml/samlidp"
@@ -25,6 +26,15 @@ type Plasmid struct {
 	logger      *log.Logger
 	internalUrl string
 	externalUrl string
+}
+
+func (p *Plasmid) Metadata() ([]byte, error) {
+	metaDescriptor := p.IDP.IDP.Metadata()
+	meta, err := xml.MarshalIndent(metaDescriptor, "", " ")
+	if err != nil {
+		return []byte{}, fmt.Errorf("failed to serialize idp metadata: %v", err)
+	}
+	return meta, nil
 }
 
 func (p *Plasmid) RegisterServiceProvider(spName string, spMetaUrl string) error {
