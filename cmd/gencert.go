@@ -3,17 +3,14 @@ package cmd
 import (
 	"github.com/mdeous/plasmid/pkg/config"
 	"github.com/mdeous/plasmid/pkg/utils"
-	"github.com/spf13/viper"
-	"os"
-	"path"
-
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 // gencertCmd represents the gencert command
 var gencertCmd = &cobra.Command{
 	Use:   "gencert",
-	Short: "Generate IdP certificate and private key",
+	Short: "Generate certificate and private key",
 	Run: func(cmd *cobra.Command, args []string) {
 		// generate private key
 		privKey, err := utils.GeneratePrivateKey(viper.GetInt(config.CertKeySize))
@@ -44,21 +41,15 @@ var gencertCmd = &cobra.Command{
 }
 
 func init() {
+	var err error
 	rootCmd.AddCommand(gencertCmd)
-	curDir, err := os.Getwd()
-	if err != nil {
+	if err = RegisterIntFlag(gencertCmd, "key-size", "s", "private key size", 0, config.CertKeySize); err != nil {
 		logr.Fatalf(err.Error())
 	}
-	gencertCmd.Flags().IntP("key-size", "s", 2048, "private key size")
-	if err = viper.BindPFlag(config.CertKeySize, gencertCmd.Flags().Lookup("key-size")); err != nil {
+	if err = RegisterStringFlag(gencertCmd, "key-file", "k", "private key output file", "key.pem", config.CertKeyFile); err != nil {
 		logr.Fatalf(err.Error())
 	}
-	gencertCmd.Flags().StringP("key-file", "k", path.Join(curDir, "key.pem"), "private key output file")
-	if err = viper.BindPFlag(config.CertKeyFile, gencertCmd.Flags().Lookup("key-file")); err != nil {
-		logr.Fatalf(err.Error())
-	}
-	gencertCmd.Flags().StringP("cert-file", "c", path.Join(curDir, "cert.pem"), "certificate output file")
-	if err = viper.BindPFlag(config.CertCertificateFile, gencertCmd.Flags().Lookup("cert-file")); err != nil {
+	if err = RegisterStringFlag(gencertCmd, "cert-file", "c", "certificate output file", "cert.pem", config.CertCertificateFile); err != nil {
 		logr.Fatalf(err.Error())
 	}
 }

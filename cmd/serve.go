@@ -126,17 +126,15 @@ var serveCmd = &cobra.Command{
 }
 
 func init() {
+	var err error
 	rootCmd.AddCommand(serveCmd)
-	serveCmd.Flags().StringP("host", "H", config.DefaultValues[config.Host].(string), "host to listen on")
-	if err := viper.BindPFlag(config.Host, serveCmd.Flags().Lookup("host")); err != nil {
+	if err = RegisterStringFlag(serveCmd, "host", "H", "host to listen on", "", config.Host); err != nil {
 		logr.Fatalf(err.Error())
 	}
-	serveCmd.Flags().IntP("port", "P", config.DefaultValues[config.Port].(int), "port to listen on")
-	if err := viper.BindPFlag(config.Port, serveCmd.Flags().Lookup("port")); err != nil {
+	if err = RegisterIntFlag(serveCmd, "port", "P", "port to listen on", 0, config.Port); err != nil {
 		logr.Fatalf(err.Error())
 	}
-	serveCmd.Flags().StringP("url", "u", config.DefaultValues[config.BaseUrl].(string), "base url on which idp is exposed")
-	if err := viper.BindPFlag(config.BaseUrl, serveCmd.Flags().Lookup("url")); err != nil {
+	if err = RegisterStringFlag(serveCmd, "url", "u", "base url exposing idp", "", config.BaseUrl); err != nil {
 		logr.Fatalf(err.Error())
 	}
 }
