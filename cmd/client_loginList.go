@@ -11,8 +11,9 @@ import (
 
 // loginListCmd represents the loginList command
 var loginListCmd = &cobra.Command{
-	Use:   "login-list",
-	Short: "List links for idp initiated login",
+	Use:     "login-list",
+	Aliases: []string{"logins", "ll"},
+	Short:   "List links for idp initiated login",
 	Run: func(cmd *cobra.Command, args []string) {
 		// create plasmid client
 		c, err := client.New(viper.GetString(config.BaseUrl))

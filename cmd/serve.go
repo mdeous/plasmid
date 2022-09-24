@@ -19,8 +19,9 @@ const IdpMetadataFile = "idp-metadata.xml"
 
 // serveCmd represents the serve command
 var serveCmd = &cobra.Command{
-	Use:   "serve",
-	Short: "Start SAML IdP server",
+	Use:     "serve",
+	Aliases: []string{"srv", "s"},
+	Short:   "Start SAML IdP server",
 	Run: func(cmd *cobra.Command, args []string) {
 		var (
 			privKey *rsa.PrivateKey

@@ -7,8 +7,9 @@ import (
 
 // clientCmd represents the client command
 var clientCmd = &cobra.Command{
-	Use:   "client",
-	Short: "Interact with a running Plasmid instance",
+	Use:     "client",
+	Aliases: []string{"c"},
+	Short:   "Interact with a running Plasmid instance",
 }
 
 func init() {

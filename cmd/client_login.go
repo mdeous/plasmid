@@ -6,8 +6,9 @@ import (
 
 // loginCmd represents the login command
 var loginCmd = &cobra.Command{
-	Use:   "login",
-	Short: "Start an idp initiated login flow (opens a browser)",
+	Use:     "login",
+	Aliases: []string{"l"},
+	Short:   "Start an idp initiated login flow (opens a browser)",
 	Run: func(cmd *cobra.Command, args []string) {
 		// get link name from command line args
 		link, err := cmd.Flags().GetString("link")

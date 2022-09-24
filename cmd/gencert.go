@@ -9,8 +9,9 @@ import (
 
 // gencertCmd represents the gencert command
 var gencertCmd = &cobra.Command{
-	Use:   "gencert",
-	Short: "Generate certificate and private key",
+	Use:     "gencert",
+	Aliases: []string{"gc", "g"},
+	Short:   "Generate certificate and private key",
 	Run: func(cmd *cobra.Command, args []string) {
 		// generate private key
 		privKey, err := utils.GeneratePrivateKey(viper.GetInt(config.CertKeySize))

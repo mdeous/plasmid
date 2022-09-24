@@ -11,8 +11,9 @@ import (
 
 // userAddCmd represents the user-add command
 var userAddCmd = &cobra.Command{
-	Use:   "user-add",
-	Short: "Create a new user account",
+	Use:     "user-add",
+	Aliases: []string{"ua"},
+	Short:   "Create a new user account",
 	Run: func(cmd *cobra.Command, args []string) {
 		// create plasmid client
 		c, err := client.New(viper.GetString(config.BaseUrl))
