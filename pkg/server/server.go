@@ -15,10 +15,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
 )
-
-const RegisterSPDelay = 2 * time.Second
 
 type Plasmid struct {
 	Host        string
@@ -40,7 +37,7 @@ func (p *Plasmid) Metadata() ([]byte, error) {
 }
 
 func (p *Plasmid) RegisterServiceProvider(spName string, spMetaUrl string) error {
-	time.Sleep(RegisterSPDelay)
+	p.logger.Printf("registering service provider '%s'", spName)
 	err := p.client.ServiceAdd(spName, spMetaUrl)
 	if err != nil {
 		return err
