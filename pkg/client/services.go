@@ -1,6 +1,7 @@
 package client
 
 import (
+	"bytes"
 	"fmt"
 	idp "github.com/crewjam/saml/samlidp"
 	"net/http"
@@ -14,8 +15,8 @@ type ServiceList struct {
 	Services []*idp.Service
 }
 
-func (p *PlasmidClient) ServiceAdd(service *idp.Service) error {
-	err := p.resourceAdd("services", service.Name, service)
+func (p *PlasmidClient) ServiceAdd(service string, meta []byte) error {
+	_, _, err := p.request(http.MethodPut, "/services/"+service, bytes.NewReader(meta), http.StatusNoContent)
 	if err != nil {
 		return err
 	}
