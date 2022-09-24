@@ -10,7 +10,7 @@ import (
 // userdelCmd represents the userDel command
 var userdelCmd = &cobra.Command{
 	Use:   "user-del",
-	Short: "Delete a registered user",
+	Short: "Delete an user account",
 	Run: func(cmd *cobra.Command, args []string) {
 		// get target username from command line
 		username, err := cmd.Flags().GetString("username")

@@ -12,7 +12,7 @@ import (
 // listCmd represents the list command
 var listCmd = &cobra.Command{
 	Use:   "user-list",
-	Short: "List registered user accounts",
+	Short: "List user accounts",
 	Run: func(cmd *cobra.Command, args []string) {
 		// create plasmid client
 		c, err := client.New(viper.GetString(config.BaseUrl))

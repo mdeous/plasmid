@@ -12,7 +12,7 @@ import (
 // serviceListCmd represents the serviceList command
 var splistCmd = &cobra.Command{
 	Use:   "sp-list",
-	Short: "List registered service providers",
+	Short: "List service providers",
 	Run: func(cmd *cobra.Command, args []string) {
 		// create plasmid client
 		c, err := client.New(viper.GetString(config.BaseUrl))
