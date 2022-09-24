@@ -1,24 +1,25 @@
 package client
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
-	idp "github.com/crewjam/saml/samlidp"
 	"io"
 	"net/http"
 	"net/url"
 	"path"
+	"strings"
 )
 
 type PlasmidClient struct {
 	BaseUrl *url.URL
 }
 
-func (p *PlasmidClient) request(method string, apiPath string, body io.Reader) (int, []byte, error) {
+func (p *PlasmidClient) request(method string, apiPath string, body io.Reader, expectedStatus int) (int, []byte, error) {
 	// build target URL
-	u := p.BaseUrl
+	u, _ := url.Parse(p.BaseUrl.String())
 	u.Path = path.Join(u.Path, apiPath)
+	if strings.HasSuffix(apiPath, "/") {
+		u.Path += "/"
+	}
 	// build request
 	req, err := http.NewRequest(method, u.String(), body)
 	if err != nil {
@@ -38,22 +39,11 @@ func (p *PlasmidClient) request(method string, apiPath string, body io.Reader) (
 	if err != nil {
 		return 0, nil, fmt.Errorf("error while reading response from %s: %v", apiPath, err)
 	}
+	// check status code
+	if expectedStatus > 0 && resp.StatusCode != expectedStatus {
+		return 0, nil, fmt.Errorf("unexpected status code: %d\n%s", resp.StatusCode, data)
+	}
 	return resp.StatusCode, data, nil
-}
-
-func (p *PlasmidClient) UserAdd(user *idp.User) error {
-	userData, err := json.Marshal(user)
-	if err != nil {
-		return fmt.Errorf("unable to deserialize user: %v", err)
-	}
-	status, resp, err := p.request(http.MethodPut, "/users/"+user.Name, bytes.NewReader(userData))
-	if err != nil {
-		return err
-	}
-	if status != http.StatusNoContent {
-		return fmt.Errorf("unexpected status code: %d\n%s", status, resp)
-	}
-	return nil
 }
 
 func New(baseUrl string) (*PlasmidClient, error) {
