@@ -9,9 +9,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// addCmd represents the add command
-var addCmd = &cobra.Command{
-	Use:   "add",
+// useraddCmd represents the user-add command
+var useraddCmd = &cobra.Command{
+	Use:   "user-add",
 	Short: "Add a new user account",
 	Run: func(cmd *cobra.Command, args []string) {
 		// create plasmid client
@@ -39,17 +39,14 @@ var addCmd = &cobra.Command{
 
 func init() {
 	var err error
-	userCmd.AddCommand(addCmd)
-	if err = RegisterStringFlag(addCmd, "url", "U", "Identity provider base URL", "", config.BaseUrl); err != nil {
+	clientCmd.AddCommand(useraddCmd)
+	if err = RegisterStringFlag(useraddCmd, false, "username", "u", "User handle", "", config.UserUsername); err != nil {
 		logr.Fatalf(err.Error())
 	}
-	if err = RegisterStringFlag(addCmd, "username", "u", "User handle", "", config.UserUsername); err != nil {
+	if err = RegisterStringFlag(useraddCmd, false, "email", "e", "User email address", "", config.UserEmail); err != nil {
 		logr.Fatalf(err.Error())
 	}
-	if err = RegisterStringFlag(addCmd, "email", "e", "User email address", "", config.UserEmail); err != nil {
-		logr.Fatalf(err.Error())
-	}
-	if err = RegisterStringFlag(addCmd, "password", "p", "User plaintext password", "", config.UserPassword); err != nil {
+	if err = RegisterStringFlag(useraddCmd, false, "password", "p", "User plaintext password", "", config.UserPassword); err != nil {
 		logr.Fatalf(err.Error())
 	}
 }
