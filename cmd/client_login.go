@@ -52,6 +52,6 @@ func init() {
 	clientCmd.AddCommand(loginCmd)
 	loginCmd.Flags().StringP("link", "l", "", "login link name")
 	err := loginCmd.MarkFlagRequired("link")
-	loginCmd.Flags().StringP("relay-state", "r", "", "relay state value")
 	handleError(err)
+	loginCmd.Flags().StringP("relay-state", "r", "", "relay state value")
 }
