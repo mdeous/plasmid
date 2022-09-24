@@ -24,7 +24,6 @@ func init() {
 	f.BindString()
 }
 
-// TODO: sp-add command
 // TODO: shortcut-list command
 // TODO: shortcut-add command
 // TODO: shortcut-del command
