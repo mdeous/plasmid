@@ -1,9 +1,9 @@
 package client
 
 import (
-	"bytes"
 	"fmt"
 	idp "github.com/crewjam/saml/samlidp"
+	"io"
 	"net/http"
 )
 
@@ -15,8 +15,16 @@ type ServiceList struct {
 	Services []*idp.Service
 }
 
-func (p *PlasmidClient) ServiceAdd(service string, meta []byte) error {
-	_, _, err := p.request(http.MethodPut, "/services/"+service, bytes.NewReader(meta), http.StatusNoContent)
+func (p *PlasmidClient) ServiceAdd(service string, metaUrl string) error {
+	samlResp, err := http.Get(metaUrl)
+	if err != nil {
+		return err
+	}
+	if samlResp.StatusCode != http.StatusOK {
+		data, _ := io.ReadAll(samlResp.Body)
+		return fmt.Errorf("error while fetching service provider metadata: %d: %s", samlResp.StatusCode, data)
+	}
+	_, _, err = p.request(http.MethodPut, "/services/"+service, samlResp.Body, http.StatusNoContent)
 	if err != nil {
 		return err
 	}

@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"github.com/crewjam/saml/logger"
 	"github.com/crewjam/saml/samlidp"
+	"github.com/mdeous/plasmid/pkg/client"
 	goji "goji.io"
 	"goji.io/pat"
 	"golang.org/x/crypto/bcrypt"
-	"io"
 	"log"
 	"net/http"
 	"net/url"
@@ -27,6 +27,7 @@ type Plasmid struct {
 	logger      *log.Logger
 	internalUrl string
 	externalUrl string
+	client      *client.PlasmidClient
 }
 
 func (p *Plasmid) Metadata() ([]byte, error) {
@@ -40,34 +41,10 @@ func (p *Plasmid) Metadata() ([]byte, error) {
 
 func (p *Plasmid) RegisterServiceProvider(spName string, spMetaUrl string) error {
 	time.Sleep(RegisterSPDelay)
-
-	// fetch service provider metadata
-	p.logger.Printf("fetching service provider metadata from '%s'", spMetaUrl)
-	samlResp, err := http.Get(spMetaUrl)
+	err := p.client.ServiceAdd(spName, spMetaUrl)
 	if err != nil {
 		return err
 	}
-	if samlResp.StatusCode != http.StatusOK {
-		data, _ := io.ReadAll(samlResp.Body)
-		return fmt.Errorf("error while fetching service provider metadata: %d: %s", samlResp.StatusCode, data)
-	}
-
-	// register service provider
-	p.logger.Printf("registering service provider '%s'", spName)
-	req, err := http.NewRequest("PUT", p.internalUrl+"/services/"+spName, samlResp.Body)
-	if err != nil {
-		return err
-	}
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return err
-	}
-	if resp.StatusCode != http.StatusNoContent {
-		data, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("unexpected response status code (%d): %s", resp.StatusCode, data)
-	}
-
-	_ = resp.Body.Close()
 	return nil
 }
 
@@ -138,6 +115,10 @@ func New(host string, port int, baseUrl *url.URL, privKey *rsa.PrivateKey, cert 
 	u.Scheme = "http"
 	u.Host = fmt.Sprintf("%s:%d", host, port)
 
+	c, err := client.New(u.String())
+	if err != nil {
+		return nil, err
+	}
 	plasmid := &Plasmid{
 		Host:        host,
 		Port:        port,
@@ -145,6 +126,7 @@ func New(host string, port int, baseUrl *url.URL, privKey *rsa.PrivateKey, cert 
 		logger:      logger.DefaultLogger,
 		internalUrl: u.String(),
 		externalUrl: baseUrl.String(),
+		client:      c,
 	}
 	return plasmid, nil
 }

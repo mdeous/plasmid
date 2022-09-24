@@ -3,11 +3,8 @@ package cmd
 import (
 	"github.com/mdeous/plasmid/pkg/client"
 	"github.com/mdeous/plasmid/pkg/config"
-	"github.com/spf13/viper"
-	"io"
-	"net/http"
-
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 // spAddCmd represents the spAdd command
@@ -22,17 +19,8 @@ var spAddCmd = &cobra.Command{
 		// create plasmid client
 		c, err := client.New(viper.GetString(config.BaseUrl))
 		handleError(err)
-		// request metadata
-		resp, err := http.Get(metadataUrl)
-		handleError(err)
-		// read response
-		defer func(body io.ReadCloser) {
-			_ = body.Close()
-		}(resp.Body)
-		data, err := io.ReadAll(resp.Body)
-		handleError(err)
 		// create service
-		err = c.ServiceAdd(service, data)
+		err = c.ServiceAdd(service, metadataUrl)
 		handleError(err)
 	},
 }
