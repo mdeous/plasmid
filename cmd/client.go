@@ -24,5 +24,3 @@ func init() {
 	}
 	f.BindString()
 }
-
-// TODO: login  command
