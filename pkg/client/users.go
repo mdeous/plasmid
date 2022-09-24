@@ -24,11 +24,13 @@ func (p *PlasmidClient) UserAdd(user *idp.User) error {
 }
 
 func (p *PlasmidClient) UserList() (*UserList, error) {
+	// fetch existing usernames
 	ids := &userIds{}
 	err := p.resourceIds("users", ids)
 	if err != nil {
 		return nil, err
 	}
+
 	// build users list
 	ulist := &UserList{}
 	for _, username := range ids.Users {
@@ -37,6 +39,7 @@ func (p *PlasmidClient) UserList() (*UserList, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to get details for user %s: %v", username, err)
 		}
+
 		// add user info to results
 		var user idp.User
 		err = json.Unmarshal(resp, &user)
@@ -55,6 +58,7 @@ func (p *PlasmidClient) UserDel(username string) error {
 	if err != nil {
 		return err
 	}
+
 	// check if user exists
 	userExists := false
 	for _, existingName := range ids.Users {
@@ -66,6 +70,7 @@ func (p *PlasmidClient) UserDel(username string) error {
 	if !userExists {
 		return fmt.Errorf("user not found: %s", username)
 	}
+
 	// delete user
 	_, _, err = p.request(http.MethodDelete, "/users/"+username, nil, http.StatusNoContent)
 	if err != nil {

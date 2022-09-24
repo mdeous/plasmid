@@ -38,6 +38,7 @@ func (p *PlasmidClient) ShortcutDel(shortcutName string) error {
 	if err != nil {
 		return err
 	}
+
 	// check if shortcut exists
 	shortcutExists := false
 	for _, existingName := range ids.Shortcuts {
@@ -49,6 +50,7 @@ func (p *PlasmidClient) ShortcutDel(shortcutName string) error {
 	if !shortcutExists {
 		return fmt.Errorf("shortcut not found: %s", shortcutName)
 	}
+
 	// delete shortcut
 	_, _, err = p.request(http.MethodDelete, "/shortcuts/"+shortcutName, nil, http.StatusNoContent)
 	if err != nil {

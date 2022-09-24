@@ -22,17 +22,20 @@ func (p *PlasmidClient) request(method string, apiPath string, body io.Reader, e
 	if strings.HasSuffix(apiPath, "/") {
 		u.Path += "/"
 	}
+
 	// build request
 	req, err := http.NewRequest(method, u.String(), body)
 	if err != nil {
 		return 0, nil, fmt.Errorf("unable to build %s request to %s: %v", method, apiPath, err)
 	}
+
 	// send request
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
 		return 0, nil, fmt.Errorf("error while sending %s request to %s: %v", method, apiPath, err)
 	}
+
 	// read response
 	defer func() {
 		_ = resp.Body.Close()
@@ -41,6 +44,7 @@ func (p *PlasmidClient) request(method string, apiPath string, body io.Reader, e
 	if err != nil {
 		return 0, nil, fmt.Errorf("error while reading response from %s: %v", apiPath, err)
 	}
+
 	// check status code
 	if expectedStatus > 0 && resp.StatusCode != expectedStatus {
 		return 0, nil, fmt.Errorf("unexpected status code: %d\n%s", resp.StatusCode, data)
@@ -54,6 +58,7 @@ func (p *PlasmidClient) resourceAdd(name string, resId string, resource interfac
 	if err != nil {
 		return fmt.Errorf("unable to deserialize %s: %v", name, err)
 	}
+
 	// create resource
 	_, _, err = p.request(
 		http.MethodPut,
@@ -73,6 +78,7 @@ func (p *PlasmidClient) resourceIds(name string, listResult interface{}) error {
 	if err != nil {
 		return err
 	}
+
 	// serialize received JSON
 	err = json.Unmarshal(resp, &listResult)
 	if err != nil {

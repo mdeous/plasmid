@@ -59,6 +59,7 @@ func (p *Plasmid) Serve() error {
 }
 
 func New(host string, port int, baseUrl *url.URL, privKey *rsa.PrivateKey, cert *x509.Certificate) (*Plasmid, error) {
+	// create idp server
 	idpServer, err := samlidp.New(samlidp.Options{
 		URL:         *baseUrl,
 		Key:         privKey,
@@ -70,14 +71,18 @@ func New(host string, port int, baseUrl *url.URL, privKey *rsa.PrivateKey, cert 
 		return nil, err
 	}
 
+	// build internal url
 	u := new(url.URL)
 	u.Scheme = "http"
 	u.Host = fmt.Sprintf("%s:%d", host, port)
 
+	// create client
 	c, err := client.New(u.String())
 	if err != nil {
 		return nil, err
 	}
+
+	// create plasmid server
 	plasmid := &Plasmid{
 		Host:        host,
 		Port:        port,
