@@ -59,6 +59,12 @@ func (f *Flag) BindInt() {
 	f.bind()
 }
 
+func (f *Flag) BindStringArray() {
+	defaultVal := f.Default()
+	f.Flags().StringArrayP(f.Name, f.ShortHand, defaultVal.([]string), f.Usage)
+	f.bind()
+}
+
 func handleError(err error) {
 	if err != nil {
 		logr.Fatalf(err.Error())

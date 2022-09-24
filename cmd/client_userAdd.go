@@ -44,7 +44,9 @@ func init() {
 		Name:        "username",
 		ShortHand:   "u",
 		Usage:       "user handle",
+		AltDefault:  "",
 		ConfigField: config.UserUsername,
+		Required:    true,
 	}
 	f.BindString()
 	f = &Flag{
@@ -52,7 +54,9 @@ func init() {
 		Name:        "email",
 		ShortHand:   "e",
 		Usage:       "user email address",
+		AltDefault:  "",
 		ConfigField: config.UserEmail,
+		Required:    true,
 	}
 	f.BindString()
 	f = &Flag{
@@ -63,5 +67,28 @@ func init() {
 		ConfigField: config.UserPassword,
 	}
 	f.BindString()
-	// TODO: support all user fields
+	f = &Flag{
+		Command:     userAddCmd,
+		Name:        "first-name",
+		ShortHand:   "f",
+		Usage:       "user first name",
+		ConfigField: config.UserFirstName,
+	}
+	f.BindString()
+	f = &Flag{
+		Command:     userAddCmd,
+		Name:        "last-name",
+		ShortHand:   "l",
+		Usage:       "user last name",
+		ConfigField: config.UserLastName,
+	}
+	f.BindString()
+	f = &Flag{
+		Command:     userAddCmd,
+		Name:        "groups",
+		ShortHand:   "g",
+		Usage:       "user group memberships",
+		ConfigField: config.UserGroups,
+	}
+	f.BindStringArray()
 }
