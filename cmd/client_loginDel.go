@@ -16,9 +16,11 @@ var loginDelCmd = &cobra.Command{
 		// get shortcut name from command line args
 		name, err := cmd.Flags().GetString("name")
 		handleError(err)
+
 		// create plasmid client
 		c, err := client.New(viper.GetString(config.BaseUrl))
 		handleError(err)
+
 		// delete service
 		err = c.ShortcutDel(name)
 		handleError(err)

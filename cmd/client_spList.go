@@ -18,9 +18,11 @@ var spListCmd = &cobra.Command{
 		// create plasmid client
 		c, err := client.New(viper.GetString(config.BaseUrl))
 		handleError(err)
+
 		// fetch services list
 		services, err := c.ServiceList()
 		handleError(err)
+
 		// display results
 		fmt.Println("Service providers:")
 		for _, svc := range services {

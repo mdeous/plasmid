@@ -28,10 +28,12 @@ var loginAddCmd = &cobra.Command{
 		}
 		urlSuffixRelay, err := cmd.Flags().GetBool("url-suffix-relay")
 		handleError(err)
+
 		// create plasmid client
 		c, err := client.New(viper.GetString(config.BaseUrl))
 		handleError(err)
-		// build shortcut object
+
+		// create new shortcut
 		sc := &idp.Shortcut{
 			Name:                  name,
 			ServiceProviderID:     entityId,

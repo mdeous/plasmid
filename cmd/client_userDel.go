@@ -16,9 +16,11 @@ var userDelCmd = &cobra.Command{
 		// get target username from command line
 		username, err := cmd.Flags().GetString("username")
 		handleError(err)
+
 		// create plasmid client
 		c, err := client.New(viper.GetString(config.BaseUrl))
 		handleError(err)
+
 		// delete user
 		err = c.UserDel(username)
 		handleError(err)

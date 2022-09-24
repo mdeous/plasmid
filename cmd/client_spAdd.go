@@ -16,9 +16,11 @@ var spAddCmd = &cobra.Command{
 		// read command line arguments
 		service := viper.GetString(config.SPName)
 		metadataUrl := viper.GetString(config.SPMetadata)
+
 		// create plasmid client
 		c, err := client.New(viper.GetString(config.BaseUrl))
 		handleError(err)
+
 		// create service
 		err = c.ServiceAdd(service, metadataUrl)
 		handleError(err)

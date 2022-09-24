@@ -18,6 +18,7 @@ var userAddCmd = &cobra.Command{
 		// create plasmid client
 		c, err := client.New(viper.GetString(config.BaseUrl))
 		handleError(err)
+
 		// build user object
 		passwd := viper.GetString(config.UserPassword)
 		user := &idp.User{
@@ -28,6 +29,7 @@ var userAddCmd = &cobra.Command{
 			Surname:           viper.GetString(config.UserLastName),
 			GivenName:         viper.GetString(config.UserFirstName),
 		}
+
 		// create user
 		err = c.UserAdd(user)
 		handleError(err)

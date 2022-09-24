@@ -17,9 +17,11 @@ var spDelCmd = &cobra.Command{
 		// get target service from command line
 		svc, err := cmd.Flags().GetString("service")
 		handleError(err)
+
 		// create plasmid client
 		c, err := client.New(viper.GetString(config.BaseUrl))
 		handleError(err)
+
 		// delete service
 		err = c.ServiceDel(svc)
 		handleError(err)
