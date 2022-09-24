@@ -24,6 +24,5 @@ func init() {
 	f.BindString()
 }
 
-// TODO: login-list command
 // TODO: login-del command
 // TODO: login  command
