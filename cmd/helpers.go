@@ -14,26 +14,28 @@ func getFlags(c *cobra.Command, persistent bool) *pflag.FlagSet {
 	return c.Flags()
 }
 
-func RegisterStringFlag(c *cobra.Command, persistent bool, name string, shorthand string, usage string, defaultValue string, configField string) error {
-	if defaultValue == "" {
+func RegisterStringFlag(c *cobra.Command, persistent bool, name string, shorthand string, usage string, altDefault string, configField string) error {
+	defaultVal := altDefault
+	if altDefault == "" {
 		configDefault := config.DefaultValues[configField]
 		if configDefault != nil {
-			defaultValue = configDefault.(string)
+			defaultVal = configDefault.(string)
 		}
 	}
 	flags := getFlags(c, persistent)
-	flags.StringP(name, shorthand, defaultValue, usage)
+	flags.StringP(name, shorthand, defaultVal, usage)
 	return viper.BindPFlag(configField, flags.Lookup(name))
 }
 
-func RegisterIntFlag(c *cobra.Command, persistent bool, name string, shorthand string, usage string, defaultValue int, configField string) error {
-	if defaultValue == 0 {
+func RegisterIntFlag(c *cobra.Command, persistent bool, name string, shorthand string, usage string, altDefault int, configField string) error {
+	defaultVal := altDefault
+	if altDefault == 0 {
 		configDefault := config.DefaultValues[configField]
 		if configDefault != nil {
-			defaultValue = configDefault.(int)
+			defaultVal = configDefault.(int)
 		}
 	}
 	flags := getFlags(c, persistent)
-	flags.IntP(name, shorthand, defaultValue, usage)
+	flags.IntP(name, shorthand, defaultVal, usage)
 	return viper.BindPFlag(configField, flags.Lookup(name))
 }
