@@ -15,31 +15,21 @@ var loginAddCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		// read command line arguments
 		name, err := cmd.Flags().GetString("name")
-		if err != nil {
-			logr.Fatalf(err.Error())
-		}
+		handleError(err)
 		entityId, err := cmd.Flags().GetString("entity-id")
-		if err != nil {
-			logr.Fatalf(err.Error())
-		}
+		handleError(err)
 		relayState, err := cmd.Flags().GetString("relay-state")
-		if err != nil {
-			logr.Fatalf(err.Error())
-		}
+		handleError(err)
 		var state *string
 		state = nil
 		if relayState != "" {
 			state = &relayState
 		}
 		urlSuffixRelay, err := cmd.Flags().GetBool("url-suffix-relay")
-		if err != nil {
-			logr.Fatalf(err.Error())
-		}
+		handleError(err)
 		// create plasmid client
 		c, err := client.New(viper.GetString(config.BaseUrl))
-		if err != nil {
-			logr.Fatalf(err.Error())
-		}
+		handleError(err)
 		// build shortcut object
 		sc := &idp.Shortcut{
 			Name:                  name,
@@ -48,22 +38,19 @@ var loginAddCmd = &cobra.Command{
 			URISuffixAsRelayState: urlSuffixRelay,
 		}
 		err = c.ShortcutAdd(sc)
-		if err != nil {
-			logr.Fatalf(err.Error())
-		}
+		handleError(err)
 	},
 }
 
 func init() {
+	var err error
 	clientCmd.AddCommand(loginAddCmd)
 	loginAddCmd.Flags().StringP("name", "n", "", "link name")
-	if err := loginAddCmd.MarkFlagRequired("name"); err != nil {
-		logr.Fatalf(err.Error())
-	}
+	err = loginAddCmd.MarkFlagRequired("name")
+	handleError(err)
 	loginAddCmd.Flags().StringP("entity-id", "e", "", "service provider entity id")
-	if err := loginAddCmd.MarkFlagRequired("entity-id"); err != nil {
-		logr.Fatalf(err.Error())
-	}
+	err = loginAddCmd.MarkFlagRequired("entity-id")
+	handleError(err)
 	loginAddCmd.Flags().StringP("relay-state", "r", "", "value to use as the relay state")
 	loginAddCmd.Flags().BoolP("url-suffix-relay", "u", false, "use login url suffix as relay state")
 }

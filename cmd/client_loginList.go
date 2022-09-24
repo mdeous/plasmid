@@ -16,14 +16,10 @@ var loginListCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		// create plasmid client
 		c, err := client.New(viper.GetString(config.BaseUrl))
-		if err != nil {
-			logr.Fatalf(err.Error())
-		}
+		handleError(err)
 		// fetch shortcuts list
 		shortcuts, err := c.ShortcutList()
-		if err != nil {
-			logr.Fatalf(err.Error())
-		}
+		handleError(err)
 		// display results
 		fmt.Println("Login links:")
 		for _, link := range shortcuts {

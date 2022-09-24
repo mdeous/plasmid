@@ -31,20 +31,14 @@ var serveCmd = &cobra.Command{
 		// load or generate identity provider keys
 		if viper.GetString(config.CertKeyFile) != "" {
 			privKey, err = utils.LoadPrivateKey(viper.GetString(config.CertKeyFile))
-			if err != nil {
-				logr.Fatalf(err.Error())
-			}
+			handleError(err)
 		} else {
 			privKey, err = utils.GeneratePrivateKey(viper.GetInt(config.CertKeySize))
-			if err != nil {
-				logr.Fatalf(err.Error())
-			}
+			handleError(err)
 		}
 		if viper.GetString(config.CertCertificateFile) != "" {
 			cert, err = utils.LoadCertificate(viper.GetString(config.CertCertificateFile))
-			if err != nil {
-				logr.Fatalf(err.Error())
-			}
+			handleError(err)
 		} else {
 			cert, err = utils.GenerateCertificate(
 				privKey,
@@ -56,9 +50,7 @@ var serveCmd = &cobra.Command{
 				viper.GetString(config.CertCaPostcode),
 				viper.GetInt(config.CertCaExpYears),
 			)
-			if err != nil {
-				logr.Fatalf(err.Error())
-			}
+			handleError(err)
 		}
 
 		// prepare idp server
@@ -74,9 +66,7 @@ var serveCmd = &cobra.Command{
 			privKey,
 			cert,
 		)
-		if err != nil {
-			logr.Fatalf(err.Error())
-		}
+		handleError(err)
 
 		// register user
 		err = idp.RegisterUser(
@@ -87,15 +77,11 @@ var serveCmd = &cobra.Command{
 			viper.GetString(config.UserFirstName),
 			viper.GetString(config.UserLastName),
 		)
-		if err != nil {
-			logr.Fatalf(err.Error())
-		}
+		handleError(err)
 
 		// save idp metadata to disk
 		meta, err := idp.Metadata()
-		if err != nil {
-			logr.Fatalf(err.Error())
-		}
+		handleError(err)
 		err = os.WriteFile(IdpMetadataFile, meta, 0644)
 		if err != nil {
 			logr.Fatalf("failed to write identity provider metadata file: %v", err)
@@ -112,16 +98,12 @@ var serveCmd = &cobra.Command{
 					viper.GetString(config.SPName),
 					viper.GetString(config.SPMetadata),
 				)
-				if err != nil {
-					logr.Fatalf(err.Error())
-				}
+				handleError(err)
 			}()
 		}
 
 		err = idp.Serve()
-		if err != nil {
-			logr.Fatalf(err.Error())
-		}
+		handleError(err)
 	},
 }
 

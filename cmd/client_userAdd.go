@@ -16,9 +16,7 @@ var userAddCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		// create plasmid client
 		c, err := client.New(viper.GetString(config.BaseUrl))
-		if err != nil {
-			logr.Fatalf(err.Error())
-		}
+		handleError(err)
 		// build user object
 		passwd := viper.GetString(config.UserPassword)
 		user := &idp.User{
@@ -31,9 +29,7 @@ var userAddCmd = &cobra.Command{
 		}
 		// create user
 		err = c.UserAdd(user)
-		if err != nil {
-			logr.Fatalf(err.Error())
-		}
+		handleError(err)
 	},
 }
 

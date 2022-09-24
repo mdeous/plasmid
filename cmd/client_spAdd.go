@@ -20,27 +20,19 @@ var spAddCmd = &cobra.Command{
 		metadataUrl := viper.GetString(config.SPMetadata)
 		// create plasmid client
 		c, err := client.New(viper.GetString(config.BaseUrl))
-		if err != nil {
-			logr.Fatalf(err.Error())
-		}
+		handleError(err)
 		// request metadata
 		resp, err := http.Get(metadataUrl)
-		if err != nil {
-			logr.Fatalf(err.Error())
-		}
+		handleError(err)
 		// read response
 		defer func(body io.ReadCloser) {
 			_ = body.Close()
 		}(resp.Body)
 		data, err := io.ReadAll(resp.Body)
-		if err != nil {
-			logr.Fatalf(err.Error())
-		}
+		handleError(err)
 		// create service
 		err = c.ServiceAdd(service, data)
-		if err != nil {
-			logr.Fatalf(err.Error())
-		}
+		handleError(err)
 	},
 }
 

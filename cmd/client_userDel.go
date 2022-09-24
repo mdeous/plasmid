@@ -14,26 +14,19 @@ var userDelCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		// get target username from command line
 		username, err := cmd.Flags().GetString("username")
-		if err != nil {
-			logr.Fatalf(err.Error())
-		}
+		handleError(err)
 		// create plasmid client
 		c, err := client.New(viper.GetString(config.BaseUrl))
-		if err != nil {
-			logr.Fatalf(err.Error())
-		}
+		handleError(err)
 		// delete user
 		err = c.UserDel(username)
-		if err != nil {
-			logr.Fatalf(err.Error())
-		}
+		handleError(err)
 	},
 }
 
 func init() {
 	clientCmd.AddCommand(userDelCmd)
 	userDelCmd.Flags().StringP("username", "u", "", "Handle of user to delete")
-	if err := userDelCmd.MarkFlagRequired("username"); err != nil {
-		logr.Fatalf(err.Error())
-	}
+	err := userDelCmd.MarkFlagRequired("username")
+	handleError(err)
 }

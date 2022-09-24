@@ -11,9 +11,7 @@ var loginCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		// get link name from command line args
 		link, err := cmd.Flags().GetString("link")
-		if err != nil {
-			logr.Fatalf(err.Error())
-		}
+		handleError(err)
 		println(link)
 	},
 }
@@ -21,7 +19,6 @@ var loginCmd = &cobra.Command{
 func init() {
 	clientCmd.AddCommand(loginCmd)
 	loginCmd.Flags().StringP("link", "l", "", "login link name")
-	if err := loginCmd.MarkFlagRequired("link"); err != nil {
-		logr.Fatalf(err.Error())
-	}
+	err := loginCmd.MarkFlagRequired("link")
+	handleError(err)
 }

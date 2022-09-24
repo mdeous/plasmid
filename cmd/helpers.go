@@ -58,3 +58,9 @@ func (f *Flag) BindInt() {
 	f.Flags().IntP(f.Name, f.ShortHand, defaultVal.(int), f.Usage)
 	f.bind()
 }
+
+func handleError(err error) {
+	if err != nil {
+		logr.Fatalf(err.Error())
+	}
+}

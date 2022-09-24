@@ -14,9 +14,7 @@ var gencertCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		// generate private key
 		privKey, err := utils.GeneratePrivateKey(viper.GetInt(config.CertKeySize))
-		if err != nil {
-			logr.Fatalf(err.Error())
-		}
+		handleError(err)
 		err = utils.WriteKeyToPem(privKey, viper.GetString(config.CertKeyFile))
 
 		// generate certificate
@@ -30,13 +28,9 @@ var gencertCmd = &cobra.Command{
 			viper.GetString(config.CertCaPostcode),
 			viper.GetInt(config.CertCaExpYears),
 		)
-		if err != nil {
-			logr.Fatalf(err.Error())
-		}
+		handleError(err)
 		err = utils.WriteCertificateToPem(cert, viper.GetString(config.CertCertificateFile))
-		if err != nil {
-			logr.Fatalf(err.Error())
-		}
+		handleError(err)
 	},
 }
 

@@ -16,14 +16,10 @@ var spListCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		// create plasmid client
 		c, err := client.New(viper.GetString(config.BaseUrl))
-		if err != nil {
-			logr.Fatalf(err.Error())
-		}
+		handleError(err)
 		// fetch services list
 		services, err := c.ServiceList()
-		if err != nil {
-			logr.Fatalf(err.Error())
-		}
+		handleError(err)
 		// display results
 		fmt.Println("Service providers:")
 		for _, svc := range services {

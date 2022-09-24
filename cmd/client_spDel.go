@@ -15,26 +15,19 @@ var spDelCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		// get target service from command line
 		svc, err := cmd.Flags().GetString("service")
-		if err != nil {
-			logr.Fatalf(err.Error())
-		}
+		handleError(err)
 		// create plasmid client
 		c, err := client.New(viper.GetString(config.BaseUrl))
-		if err != nil {
-			logr.Fatalf(err.Error())
-		}
+		handleError(err)
 		// delete service
 		err = c.ServiceDel(svc)
-		if err != nil {
-			logr.Fatalf(err.Error())
-		}
+		handleError(err)
 	},
 }
 
 func init() {
 	clientCmd.AddCommand(spDelCmd)
 	spDelCmd.Flags().StringP("service", "s", "", "id of service provider to delete")
-	if err := spDelCmd.MarkFlagRequired("service"); err != nil {
-		logr.Fatalf(err.Error())
-	}
+	err := spDelCmd.MarkFlagRequired("service")
+	handleError(err)
 }

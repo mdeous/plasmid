@@ -16,14 +16,10 @@ var userListCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		// create plasmid client
 		c, err := client.New(viper.GetString(config.BaseUrl))
-		if err != nil {
-			logr.Fatalf(err.Error())
-		}
+		handleError(err)
 		// fetch users list
 		users, err := c.UserList()
-		if err != nil {
-			logr.Fatalf(err.Error())
-		}
+		handleError(err)
 		// display results as JSON
 		data, _ := json.MarshalIndent(*users, "", "  ")
 		fmt.Println(string(data))
