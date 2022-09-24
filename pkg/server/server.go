@@ -10,7 +10,6 @@ import (
 	"github.com/mdeous/plasmid/pkg/client"
 	goji "goji.io"
 	"goji.io/pat"
-	"golang.org/x/crypto/bcrypt"
 	"log"
 	"net/http"
 	"net/url"
@@ -34,43 +33,6 @@ func (p *Plasmid) Metadata() ([]byte, error) {
 		return []byte{}, fmt.Errorf("failed to serialize idp metadata: %v", err)
 	}
 	return meta, nil
-}
-
-func (p *Plasmid) RegisterServiceProvider(spName string, spMetaUrl string) error {
-	p.logger.Printf("registering service provider '%s'", spName)
-	err := p.client.ServiceAdd(spName, spMetaUrl)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (p *Plasmid) RegisterUser(
-	username string,
-	password string,
-	groups []string,
-	email string,
-	firstName string,
-	lastName string,
-) error {
-	p.logger.Printf("registering user '%s'", username)
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	if err != nil {
-		return fmt.Errorf("unable to hash user '%s' password: %v", username, err)
-	}
-	err = p.IDP.Store.Put("/users/"+username, samlidp.User{
-		Name:           username,
-		HashedPassword: hashedPassword,
-		Groups:         groups,
-		Email:          email,
-		GivenName:      firstName,
-		Surname:        lastName,
-		CommonName:     fmt.Sprintf("%s %s", firstName, lastName),
-	})
-	if err != nil {
-		return fmt.Errorf("unable to register user '%s': %v", username, err)
-	}
-	return nil
 }
 
 func (p *Plasmid) LoggingMiddleware(handler http.Handler) http.Handler {

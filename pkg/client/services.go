@@ -16,6 +16,7 @@ type ServiceList struct {
 }
 
 func (p *PlasmidClient) ServiceAdd(service string, metaUrl string) error {
+	// TODO: allow to pass SP metadata as a file
 	samlResp, err := http.Get(metaUrl)
 	if err != nil {
 		return err

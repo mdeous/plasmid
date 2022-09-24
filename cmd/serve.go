@@ -3,6 +3,8 @@ package cmd
 import (
 	"crypto/rsa"
 	"crypto/x509"
+	"github.com/crewjam/saml/samlidp"
+	"github.com/mdeous/plasmid/pkg/client"
 	"github.com/mdeous/plasmid/pkg/config"
 	"github.com/mdeous/plasmid/pkg/server"
 	"github.com/mdeous/plasmid/pkg/utils"
@@ -14,7 +16,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const RegisterSPDelay = 2 * time.Second
+const StartupDelay = 2 * time.Second
 const IdpMetadataFile = "idp-metadata.xml"
 
 // serveCmd represents the serve command
@@ -69,17 +71,6 @@ var serveCmd = &cobra.Command{
 		)
 		handleError(err)
 
-		// register user
-		err = idp.RegisterUser(
-			viper.GetString(config.UserUsername),
-			viper.GetString(config.UserPassword),
-			viper.GetStringSlice(config.UserGroups),
-			viper.GetString(config.UserEmail),
-			viper.GetString(config.UserFirstName),
-			viper.GetString(config.UserLastName),
-		)
-		handleError(err)
-
 		// save idp metadata to disk
 		meta, err := idp.Metadata()
 		handleError(err)
@@ -90,13 +81,31 @@ var serveCmd = &cobra.Command{
 			logr.Println("identity provider metadata saved to", IdpMetadataFile)
 		}
 
-		// register service provider after the idp has started
+		// register user and service provider after the idp has started
 		if viper.GetString(config.SPMetadata) != "" {
 			go func() {
-				time.Sleep(RegisterSPDelay)
-				// TODO: allow to pass SP metadata as a file
-				err = idp.RegisterServiceProvider(
-					viper.GetString(config.SPName),
+				time.Sleep(StartupDelay)
+				// create plasmid client
+				c, err := client.New(viper.GetString(config.BaseUrl))
+				handleError(err)
+				// create new user
+				username := viper.GetString(config.UserUsername)
+				logr.Printf("registering new user '%s'", username)
+				password := viper.GetString(config.UserPassword)
+				err = c.UserAdd(&samlidp.User{
+					Name:              username,
+					PlaintextPassword: &password,
+					Groups:            viper.GetStringSlice(config.UserGroups),
+					Email:             viper.GetString(config.UserEmail),
+					Surname:           viper.GetString(config.UserLastName),
+					GivenName:         viper.GetString(config.UserFirstName),
+				})
+				handleError(err)
+				// register service provider
+				spName := viper.GetString(config.SPName)
+				logr.Printf("registering service provider '%s'", spName)
+				err = c.ServiceAdd(
+					spName,
 					viper.GetString(config.SPMetadata),
 				)
 				handleError(err)
