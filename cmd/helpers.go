@@ -7,35 +7,49 @@ import (
 	"github.com/spf13/viper"
 )
 
-func getFlags(c *cobra.Command, persistent bool) *pflag.FlagSet {
-	if persistent {
-		return c.PersistentFlags()
-	}
-	return c.Flags()
+type Flag struct {
+	Command     *cobra.Command
+	Persistent  bool
+	Name        string
+	ShortHand   string
+	Usage       string
+	AltDefault  interface{}
+	ConfigField string
 }
 
-func RegisterStringFlag(c *cobra.Command, persistent bool, name string, shorthand string, usage string, altDefault string, configField string) error {
-	defaultVal := altDefault
-	if altDefault == "" {
-		configDefault := config.DefaultValues[configField]
+func (f *Flag) Default() interface{} {
+	if f.AltDefault == nil && f.ConfigField != "" {
+		configDefault := config.DefaultValues[f.ConfigField]
 		if configDefault != nil {
-			defaultVal = configDefault.(string)
+			return configDefault
 		}
 	}
-	flags := getFlags(c, persistent)
-	flags.StringP(name, shorthand, defaultVal, usage)
-	return viper.BindPFlag(configField, flags.Lookup(name))
+	return f.AltDefault
 }
 
-func RegisterIntFlag(c *cobra.Command, persistent bool, name string, shorthand string, usage string, altDefault int, configField string) error {
-	defaultVal := altDefault
-	if altDefault == 0 {
-		configDefault := config.DefaultValues[configField]
-		if configDefault != nil {
-			defaultVal = configDefault.(int)
-		}
+func (f *Flag) Flags() *pflag.FlagSet {
+	if f.Persistent {
+		return f.Command.PersistentFlags()
 	}
-	flags := getFlags(c, persistent)
-	flags.IntP(name, shorthand, defaultVal, usage)
-	return viper.BindPFlag(configField, flags.Lookup(name))
+	return f.Command.Flags()
+}
+
+func RegisterStringFlag(flag *Flag) {
+	defaultVal := flag.Default()
+	flags := flag.Flags()
+	flags.StringP(flag.Name, flag.ShortHand, defaultVal.(string), flag.Usage)
+	err := viper.BindPFlag(flag.ConfigField, flags.Lookup(flag.Name))
+	if err != nil {
+		logr.Fatalf(err.Error())
+	}
+}
+
+func RegisterIntFlag(flag *Flag) {
+	defaultVal := flag.Default()
+	flags := flag.Flags()
+	flags.IntP(flag.Name, flag.ShortHand, defaultVal.(int), flag.Usage)
+	err := viper.BindPFlag(flag.ConfigField, flags.Lookup(flag.Name))
+	if err != nil {
+		logr.Fatalf(err.Error())
+	}
 }

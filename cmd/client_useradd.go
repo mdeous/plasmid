@@ -38,15 +38,26 @@ var useraddCmd = &cobra.Command{
 }
 
 func init() {
-	var err error
 	clientCmd.AddCommand(useraddCmd)
-	if err = RegisterStringFlag(useraddCmd, false, "username", "u", "User handle", "", config.UserUsername); err != nil {
-		logr.Fatalf(err.Error())
-	}
-	if err = RegisterStringFlag(useraddCmd, false, "email", "e", "User email address", "", config.UserEmail); err != nil {
-		logr.Fatalf(err.Error())
-	}
-	if err = RegisterStringFlag(useraddCmd, false, "password", "p", "User plaintext password", "", config.UserPassword); err != nil {
-		logr.Fatalf(err.Error())
-	}
+	RegisterStringFlag(&Flag{
+		Command:     useraddCmd,
+		Name:        "username",
+		ShortHand:   "u",
+		Usage:       "user handle",
+		ConfigField: config.UserUsername,
+	})
+	RegisterStringFlag(&Flag{
+		Command:     useraddCmd,
+		Name:        "email",
+		ShortHand:   "e",
+		Usage:       "user email address",
+		ConfigField: config.UserEmail,
+	})
+	RegisterStringFlag(&Flag{
+		Command:     useraddCmd,
+		Name:        "password",
+		ShortHand:   "p",
+		Usage:       "user plaintext password",
+		ConfigField: config.UserPassword,
+	})
 }
