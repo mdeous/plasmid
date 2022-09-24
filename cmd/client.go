@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"github.com/mdeous/plasmid/pkg/config"
 	"github.com/spf13/cobra"
 )
 
@@ -11,5 +12,9 @@ var clientCmd = &cobra.Command{
 }
 
 func init() {
+	var err error
 	rootCmd.AddCommand(clientCmd)
+	if err = RegisterStringFlag(clientCmd, true, "url", "", "Plasmid instance URL", "", config.BaseUrl); err != nil {
+		logr.Fatalf(err.Error())
+	}
 }
