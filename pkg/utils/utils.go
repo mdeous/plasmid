@@ -8,7 +8,6 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"fmt"
-	"io/ioutil"
 	"math/big"
 	"os"
 	"time"
@@ -20,7 +19,7 @@ const CertificateType PemType = "CERTIFICATE"
 const PrivateKeyType PemType = "RSA PRIVATE KEY"
 
 func readPemFile(path string) ([]byte, error) {
-	pemBytes, err := ioutil.ReadFile(path)
+	pemBytes, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
