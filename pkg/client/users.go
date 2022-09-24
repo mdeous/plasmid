@@ -24,7 +24,7 @@ func (p *PlasmidClient) UserAdd(user *idp.User) error {
 	return nil
 }
 
-func (p *PlasmidClient) UserList() (*UserList, error) {
+func (p *PlasmidClient) userNames() ([]string, error) {
 	// get list of user names
 	_, resp, err := p.request(http.MethodGet, "/users/", nil, http.StatusOK)
 	if err != nil {
@@ -38,11 +38,19 @@ func (p *PlasmidClient) UserList() (*UserList, error) {
 	if err != nil {
 		return nil, fmt.Errorf("unable to deserialize users list: %v", err)
 	}
+	return users.Users, nil
+}
+
+func (p *PlasmidClient) UserList() (*UserList, error) {
+	usernames, err := p.userNames()
+	if err != nil {
+		return nil, fmt.Errorf("unable to deserialize users list: %v", err)
+	}
 	// build users list
 	ulist := &UserList{}
-	for _, username := range users.Users {
+	for _, username := range usernames {
 		// get detailed user info
-		_, resp, err = p.request(http.MethodGet, "/users/"+username, nil, http.StatusOK)
+		_, resp, err := p.request(http.MethodGet, "/users/"+username, nil, http.StatusOK)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get details for user %s: %v", username, err)
 		}
@@ -55,4 +63,29 @@ func (p *PlasmidClient) UserList() (*UserList, error) {
 		ulist.Users = append(ulist.Users, &user)
 	}
 	return ulist, nil
+}
+
+func (p *PlasmidClient) UserDel(username string) error {
+	// get list of usernames
+	usernames, err := p.userNames()
+	if err != nil {
+		return fmt.Errorf("failed to get list of users: %v", err)
+	}
+	// check if user exists
+	userExists := false
+	for _, existingName := range usernames {
+		if existingName == username {
+			userExists = true
+			break
+		}
+	}
+	if !userExists {
+		return fmt.Errorf("user not found: %s", username)
+	}
+	// delete user
+	_, _, err = p.request(http.MethodDelete, "/users/"+username, nil, http.StatusNoContent)
+	if err != nil {
+		return err
+	}
+	return nil
 }
