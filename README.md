@@ -3,6 +3,7 @@
 Basic SAML identity provider.
 
 > **Warning**
+>
 > This application is strictly meant for testing, no authentication is (nor will be) implemented on the
 > administration endpoints exposed by the API. It MUST NOT be used as a production SAML IdP.
 
