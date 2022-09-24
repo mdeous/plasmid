@@ -24,7 +24,6 @@ func init() {
 	f.BindString()
 }
 
-// TODO: shortcut-list command
-// TODO: shortcut-add command
-// TODO: shortcut-del command
+// TODO: login-list command
+// TODO: login-del command
 // TODO: login  command
