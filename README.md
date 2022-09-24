@@ -8,8 +8,6 @@ Basic SAML identity provider.
 > administration endpoints exposed by the API. It MUST NOT be used as a production SAML IdP.
 
 ---
-Table of contents:
-
 * [Introduction](#introduction)
   * [Installation](#installation)
     * [From source](#from-source)
