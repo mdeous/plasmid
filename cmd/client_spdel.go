@@ -31,4 +31,7 @@ var spdelCmd = &cobra.Command{
 func init() {
 	clientCmd.AddCommand(spdelCmd)
 	spdelCmd.Flags().StringP("service", "s", "", "id of service provider to delete")
+	if err := spdelCmd.MarkFlagRequired("service"); err != nil {
+		logr.Fatalf(err.Error())
+	}
 }
