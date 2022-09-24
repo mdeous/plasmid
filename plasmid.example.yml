@@ -8,9 +8,11 @@ cert:
   ca_locality: Paris
   ca_postcode: 75001
   ca_exp_years: 1
+  key_size: 2048
+  # if certificate_file or key_file is set, they are
+  # used instead of generating them at startup
   certificate_file: cert.pem
   key_file: key.pem
-  key_size: 2048
 user:
   username: admin
   password: Password123
