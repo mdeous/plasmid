@@ -9,8 +9,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// useraddCmd represents the user-add command
-var useraddCmd = &cobra.Command{
+// userAddCmd represents the user-add command
+var userAddCmd = &cobra.Command{
 	Use:   "user-add",
 	Short: "Create a new user account",
 	Run: func(cmd *cobra.Command, args []string) {
@@ -39,9 +39,9 @@ var useraddCmd = &cobra.Command{
 
 func init() {
 	var f *Flag
-	clientCmd.AddCommand(useraddCmd)
+	clientCmd.AddCommand(userAddCmd)
 	f = &Flag{
-		Command:     useraddCmd,
+		Command:     userAddCmd,
 		Name:        "username",
 		ShortHand:   "u",
 		Usage:       "user handle",
@@ -49,7 +49,7 @@ func init() {
 	}
 	f.BindString()
 	f = &Flag{
-		Command:     useraddCmd,
+		Command:     userAddCmd,
 		Name:        "email",
 		ShortHand:   "e",
 		Usage:       "user email address",
@@ -57,7 +57,7 @@ func init() {
 	}
 	f.BindString()
 	f = &Flag{
-		Command:     useraddCmd,
+		Command:     userAddCmd,
 		Name:        "password",
 		ShortHand:   "p",
 		Usage:       "user plaintext password",

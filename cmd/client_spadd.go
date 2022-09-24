@@ -10,8 +10,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// spaddCmd represents the spAdd command
-var spaddCmd = &cobra.Command{
+// spAddCmd represents the spAdd command
+var spAddCmd = &cobra.Command{
 	Use:   "sp-add",
 	Short: "Register a new service provider",
 	Run: func(cmd *cobra.Command, args []string) {
@@ -46,9 +46,9 @@ var spaddCmd = &cobra.Command{
 
 func init() {
 	var f *Flag
-	clientCmd.AddCommand(spaddCmd)
+	clientCmd.AddCommand(spAddCmd)
 	f = &Flag{
-		Command:     spaddCmd,
+		Command:     spAddCmd,
 		Name:        "service",
 		ShortHand:   "s",
 		Usage:       "service provider name",
@@ -58,7 +58,7 @@ func init() {
 	}
 	f.BindString()
 	f = &Flag{
-		Command:     spaddCmd,
+		Command:     spAddCmd,
 		Name:        "metadata",
 		ShortHand:   "m",
 		Usage:       "url to fetch the metadata from",

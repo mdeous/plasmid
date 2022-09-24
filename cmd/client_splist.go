@@ -9,8 +9,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// serviceListCmd represents the serviceList command
-var splistCmd = &cobra.Command{
+// spListCmd represents the serviceList command
+var spListCmd = &cobra.Command{
 	Use:   "sp-list",
 	Short: "List service providers",
 	Run: func(cmd *cobra.Command, args []string) {
@@ -33,5 +33,5 @@ var splistCmd = &cobra.Command{
 }
 
 func init() {
-	clientCmd.AddCommand(splistCmd)
+	clientCmd.AddCommand(spListCmd)
 }

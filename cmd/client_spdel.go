@@ -8,8 +8,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// spdelCmd represents the spGet command
-var spdelCmd = &cobra.Command{
+// spDelCmd represents the spGet command
+var spDelCmd = &cobra.Command{
 	Use:   "sp-del",
 	Short: "Delete a service provider",
 	Run: func(cmd *cobra.Command, args []string) {
@@ -29,9 +29,9 @@ var spdelCmd = &cobra.Command{
 }
 
 func init() {
-	clientCmd.AddCommand(spdelCmd)
-	spdelCmd.Flags().StringP("service", "s", "", "id of service provider to delete")
-	if err := spdelCmd.MarkFlagRequired("service"); err != nil {
+	clientCmd.AddCommand(spDelCmd)
+	spDelCmd.Flags().StringP("service", "s", "", "id of service provider to delete")
+	if err := spDelCmd.MarkFlagRequired("service"); err != nil {
 		logr.Fatalf(err.Error())
 	}
 }

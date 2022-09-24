@@ -9,8 +9,8 @@ import (
 	"github.com/spf13/viper"
 )
 
-// listCmd represents the list command
-var listCmd = &cobra.Command{
+// userListCmd represents the list command
+var userListCmd = &cobra.Command{
 	Use:   "user-list",
 	Short: "List user accounts",
 	Run: func(cmd *cobra.Command, args []string) {
@@ -31,5 +31,5 @@ var listCmd = &cobra.Command{
 }
 
 func init() {
-	clientCmd.AddCommand(listCmd)
+	clientCmd.AddCommand(userListCmd)
 }

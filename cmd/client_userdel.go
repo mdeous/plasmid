@@ -7,8 +7,8 @@ import (
 	"github.com/spf13/viper"
 )
 
-// userdelCmd represents the userDel command
-var userdelCmd = &cobra.Command{
+// userDelCmd represents the userDel command
+var userDelCmd = &cobra.Command{
 	Use:   "user-del",
 	Short: "Delete an user account",
 	Run: func(cmd *cobra.Command, args []string) {
@@ -31,9 +31,9 @@ var userdelCmd = &cobra.Command{
 }
 
 func init() {
-	clientCmd.AddCommand(userdelCmd)
-	userdelCmd.Flags().StringP("username", "u", "", "Handle of user to delete")
-	if err := userdelCmd.MarkFlagRequired("username"); err != nil {
+	clientCmd.AddCommand(userDelCmd)
+	userDelCmd.Flags().StringP("username", "u", "", "Handle of user to delete")
+	if err := userDelCmd.MarkFlagRequired("username"); err != nil {
 		logr.Fatalf(err.Error())
 	}
 }
