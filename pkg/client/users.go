@@ -1,54 +1,37 @@
 package client
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	idp "github.com/crewjam/saml/samlidp"
 	"net/http"
 )
 
+type userIds struct {
+	Users []string `json:"users"`
+}
+
 type UserList struct {
 	Users []*idp.User
 }
 
 func (p *PlasmidClient) UserAdd(user *idp.User) error {
-	userData, err := json.Marshal(user)
-	if err != nil {
-		return fmt.Errorf("unable to deserialize user: %v", err)
-	}
-	_, _, err = p.request(http.MethodPut, "/users/"+user.Name, bytes.NewReader(userData), http.StatusNoContent)
+	err := p.resourceAdd("users", user.Name, user)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (p *PlasmidClient) userNames() ([]string, error) {
-	// get list of user names
-	_, resp, err := p.request(http.MethodGet, "/users/", nil, http.StatusOK)
+func (p *PlasmidClient) UserList() (*UserList, error) {
+	ids := &userIds{}
+	err := p.resourceIds("users", ids)
 	if err != nil {
 		return nil, err
 	}
-	// serialize received JSON
-	var users struct {
-		Users []string `json:"users"`
-	}
-	err = json.Unmarshal(resp, &users)
-	if err != nil {
-		return nil, fmt.Errorf("unable to deserialize users list: %v", err)
-	}
-	return users.Users, nil
-}
-
-func (p *PlasmidClient) UserList() (*UserList, error) {
-	usernames, err := p.userNames()
-	if err != nil {
-		return nil, fmt.Errorf("unable to deserialize users list: %v", err)
-	}
 	// build users list
 	ulist := &UserList{}
-	for _, username := range usernames {
+	for _, username := range ids.Users {
 		// get detailed user info
 		_, resp, err := p.request(http.MethodGet, "/users/"+username, nil, http.StatusOK)
 		if err != nil {
@@ -67,13 +50,14 @@ func (p *PlasmidClient) UserList() (*UserList, error) {
 
 func (p *PlasmidClient) UserDel(username string) error {
 	// get list of usernames
-	usernames, err := p.userNames()
+	ids := &userIds{}
+	err := p.resourceIds("users", ids)
 	if err != nil {
-		return fmt.Errorf("failed to get list of users: %v", err)
+		return err
 	}
 	// check if user exists
 	userExists := false
-	for _, existingName := range usernames {
+	for _, existingName := range ids.Users {
 		if existingName == username {
 			userExists = true
 			break
