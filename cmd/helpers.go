@@ -15,6 +15,7 @@ type Flag struct {
 	Usage       string
 	AltDefault  interface{}
 	ConfigField string
+	Required    bool
 }
 
 func (f *Flag) Default() interface{} {
@@ -34,22 +35,26 @@ func (f *Flag) Flags() *pflag.FlagSet {
 	return f.Command.Flags()
 }
 
-func RegisterStringFlag(flag *Flag) {
-	defaultVal := flag.Default()
-	flags := flag.Flags()
-	flags.StringP(flag.Name, flag.ShortHand, defaultVal.(string), flag.Usage)
-	err := viper.BindPFlag(flag.ConfigField, flags.Lookup(flag.Name))
+func (f *Flag) bind() {
+	if f.Required {
+		if err := f.Command.MarkFlagRequired(f.Name); err != nil {
+			logr.Fatalf(err.Error())
+		}
+	}
+	err := viper.BindPFlag(f.ConfigField, f.Flags().Lookup(f.Name))
 	if err != nil {
 		logr.Fatalf(err.Error())
 	}
 }
 
-func RegisterIntFlag(flag *Flag) {
-	defaultVal := flag.Default()
-	flags := flag.Flags()
-	flags.IntP(flag.Name, flag.ShortHand, defaultVal.(int), flag.Usage)
-	err := viper.BindPFlag(flag.ConfigField, flags.Lookup(flag.Name))
-	if err != nil {
-		logr.Fatalf(err.Error())
-	}
+func (f *Flag) BindString() {
+	defaultVal := f.Default()
+	f.Flags().StringP(f.Name, f.ShortHand, defaultVal.(string), f.Usage)
+	f.bind()
+}
+
+func (f *Flag) BindInt() {
+	defaultVal := f.Default()
+	f.Flags().IntP(f.Name, f.ShortHand, defaultVal.(int), f.Usage)
+	f.bind()
 }

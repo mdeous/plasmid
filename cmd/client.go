@@ -12,12 +12,20 @@ var clientCmd = &cobra.Command{
 }
 
 func init() {
+	var f *Flag
 	rootCmd.AddCommand(clientCmd)
-	RegisterStringFlag(&Flag{
+	f = &Flag{
 		Command:     clientCmd,
 		Persistent:  true,
 		Name:        "url",
 		Usage:       "plasmid instance url",
 		ConfigField: config.BaseUrl,
-	})
+	}
+	f.BindString()
 }
+
+// TODO: sp-add command
+// TODO: shortcut-list command
+// TODO: shortcut-add command
+// TODO: shortcut-del command
+// TODO: login  command

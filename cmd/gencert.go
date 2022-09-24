@@ -41,28 +41,32 @@ var gencertCmd = &cobra.Command{
 }
 
 func init() {
+	var f *Flag
 	rootCmd.AddCommand(gencertCmd)
-	RegisterIntFlag(&Flag{
+	f = &Flag{
 		Command:     gencertCmd,
 		Name:        "key-size",
 		ShortHand:   "s",
 		Usage:       "private key size",
 		ConfigField: config.CertKeySize,
-	})
-	RegisterStringFlag(&Flag{
+	}
+	f.BindInt()
+	f = &Flag{
 		Command:     gencertCmd,
 		Name:        "key-file",
 		ShortHand:   "k",
 		Usage:       "private key output file",
 		AltDefault:  "key.pem",
 		ConfigField: config.CertKeyFile,
-	})
-	RegisterStringFlag(&Flag{
+	}
+	f.BindString()
+	f = &Flag{
 		Command:     gencertCmd,
 		Name:        "cert-file",
 		ShortHand:   "c",
 		Usage:       "certificate output file",
 		AltDefault:  "cert.pem",
 		ConfigField: config.CertCertificateFile,
-	})
+	}
+	f.BindString()
 }

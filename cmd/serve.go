@@ -126,26 +126,30 @@ var serveCmd = &cobra.Command{
 }
 
 func init() {
+	var f *Flag
 	rootCmd.AddCommand(serveCmd)
-	RegisterStringFlag(&Flag{
+	f = &Flag{
 		Command:     serveCmd,
 		Name:        "host",
 		ShortHand:   "H",
 		Usage:       "host to listen on",
 		ConfigField: config.Host,
-	})
-	RegisterIntFlag(&Flag{
+	}
+	f.BindString()
+	f = &Flag{
 		Command:     serveCmd,
 		Name:        "port",
 		ShortHand:   "P",
 		Usage:       "port to listen on",
 		ConfigField: config.Port,
-	})
-	RegisterStringFlag(&Flag{
+	}
+	f.BindInt()
+	f = &Flag{
 		Command:     serveCmd,
 		Name:        "url",
 		ShortHand:   "u",
 		Usage:       "base url exposing idp",
 		ConfigField: config.BaseUrl,
-	})
+	}
+	f.BindString()
 }

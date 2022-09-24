@@ -38,27 +38,31 @@ var useraddCmd = &cobra.Command{
 }
 
 func init() {
+	var f *Flag
 	clientCmd.AddCommand(useraddCmd)
-	RegisterStringFlag(&Flag{
+	f = &Flag{
 		Command:     useraddCmd,
 		Name:        "username",
 		ShortHand:   "u",
 		Usage:       "user handle",
 		ConfigField: config.UserUsername,
-	})
-	RegisterStringFlag(&Flag{
+	}
+	f.BindString()
+	f = &Flag{
 		Command:     useraddCmd,
 		Name:        "email",
 		ShortHand:   "e",
 		Usage:       "user email address",
 		ConfigField: config.UserEmail,
-	})
-	RegisterStringFlag(&Flag{
+	}
+	f.BindString()
+	f = &Flag{
 		Command:     useraddCmd,
 		Name:        "password",
 		ShortHand:   "p",
 		Usage:       "user plaintext password",
 		ConfigField: config.UserPassword,
-	})
+	}
+	f.BindString()
 	// TODO: support all user fields
 }
