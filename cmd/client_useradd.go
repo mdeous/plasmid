@@ -60,4 +60,5 @@ func init() {
 		Usage:       "user plaintext password",
 		ConfigField: config.UserPassword,
 	})
+	// TODO: support all user fields
 }
