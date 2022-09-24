@@ -15,6 +15,9 @@ var spDelCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		// get target service from command line
 		svc, err := cmd.Flags().GetString("service")
+		if err != nil {
+			logr.Fatalf(err.Error())
+		}
 		// create plasmid client
 		c, err := client.New(viper.GetString(config.BaseUrl))
 		if err != nil {
