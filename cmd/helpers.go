@@ -23,7 +23,7 @@ func RegisterStringFlag(c *cobra.Command, persistent bool, name string, shorthan
 	}
 	flags := getFlags(c, persistent)
 	flags.StringP(name, shorthand, defaultValue, usage)
-	return viper.BindPFlag(configField, c.Flags().Lookup(name))
+	return viper.BindPFlag(configField, flags.Lookup(name))
 }
 
 func RegisterIntFlag(c *cobra.Command, persistent bool, name string, shorthand string, usage string, defaultValue int, configField string) error {
@@ -35,5 +35,5 @@ func RegisterIntFlag(c *cobra.Command, persistent bool, name string, shorthand s
 	}
 	flags := getFlags(c, persistent)
 	flags.IntP(name, shorthand, defaultValue, usage)
-	return viper.BindPFlag(configField, c.Flags().Lookup(name))
+	return viper.BindPFlag(configField, flags.Lookup(name))
 }
