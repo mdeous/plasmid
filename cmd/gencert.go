@@ -43,13 +43,13 @@ var gencertCmd = &cobra.Command{
 func init() {
 	var err error
 	rootCmd.AddCommand(gencertCmd)
-	if err = RegisterIntFlag(gencertCmd, "key-size", "s", "private key size", 0, config.CertKeySize); err != nil {
+	if err = RegisterIntFlag(gencertCmd, false, "key-size", "s", "private key size", 0, config.CertKeySize); err != nil {
 		logr.Fatalf(err.Error())
 	}
-	if err = RegisterStringFlag(gencertCmd, "key-file", "k", "private key output file", "key.pem", config.CertKeyFile); err != nil {
+	if err = RegisterStringFlag(gencertCmd, false, "key-file", "k", "private key output file", "key.pem", config.CertKeyFile); err != nil {
 		logr.Fatalf(err.Error())
 	}
-	if err = RegisterStringFlag(gencertCmd, "cert-file", "c", "certificate output file", "cert.pem", config.CertCertificateFile); err != nil {
+	if err = RegisterStringFlag(gencertCmd, false, "cert-file", "c", "certificate output file", "cert.pem", config.CertCertificateFile); err != nil {
 		logr.Fatalf(err.Error())
 	}
 }

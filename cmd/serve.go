@@ -128,13 +128,13 @@ var serveCmd = &cobra.Command{
 func init() {
 	var err error
 	rootCmd.AddCommand(serveCmd)
-	if err = RegisterStringFlag(serveCmd, "host", "H", "host to listen on", "", config.Host); err != nil {
+	if err = RegisterStringFlag(serveCmd, false, "host", "H", "host to listen on", "", config.Host); err != nil {
 		logr.Fatalf(err.Error())
 	}
-	if err = RegisterIntFlag(serveCmd, "port", "P", "port to listen on", 0, config.Port); err != nil {
+	if err = RegisterIntFlag(serveCmd, false, "port", "P", "port to listen on", 0, config.Port); err != nil {
 		logr.Fatalf(err.Error())
 	}
-	if err = RegisterStringFlag(serveCmd, "url", "u", "base url exposing idp", "", config.BaseUrl); err != nil {
+	if err = RegisterStringFlag(serveCmd, false, "url", "u", "base url exposing idp", "", config.BaseUrl); err != nil {
 		logr.Fatalf(err.Error())
 	}
 }
