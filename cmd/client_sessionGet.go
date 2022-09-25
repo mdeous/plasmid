@@ -43,6 +43,7 @@ var sessionGetCmd = &cobra.Command{
 		}
 
 		// get session info
+		// FIXME: depending on the chars in the session id, request fails
 		session, err := c.SessionGet(sessionId)
 		handleError(err)
 		data, err := json.MarshalIndent(session, "", "  ")

@@ -107,7 +107,6 @@ Multiple functions to interact in various ways with a running Plasmid instance a
 `plasmid client` command. The available commands are:
 
 ```
-$ ./plasmid client
 Interact with a running Plasmid instance
 
 Usage:
@@ -117,31 +116,28 @@ Aliases:
   client, c
 
 Available Commands:
-  login       Start an idp initiated login flow (opens a browser)
-  login-add   Create a new idp initiated login link
-  login-del   Delete an idp initiated login link
-  login-list  List links for idp initiated login
-  sp-add      Register a new service provider
-  sp-del      Delete a service provider
-  sp-list     List service providers
-  user-add    Create a new user account
-  user-del    Delete an user account
-  user-list   List user accounts
+  login        Start an idp initiated login flow (opens a browser)
+  login-add    Create a new idp initiated login link
+  login-del    Delete an idp initiated login link
+  login-list   List links for idp initiated login
+  session-del  Delete an active user session
+  session-get  Get details about an active user session
+  session-list List active user sessions
+  sp-add       Register a new service provider
+  sp-del       Delete a service provider
+  sp-list      List service providers
+  user-add     Create a new user account
+  user-del     Delete an user account
+  user-list    List user accounts
 
 Flags:
   -h, --help         help for client
       --url string   plasmid instance url (default "http://127.0.0.1:8000")
 
 Use "plasmid client [command] --help" for more information about a command.
-
 ```
 
-* create/list/delete user accounts
-* create/list/delete service providers
-* create/list/delete login links for IdP initiated login
-* start an IdP initiated login flow with a service provider
-
-Refer to the commands help for more details.
+Refer to each commands help for more details on their usage.
 
 ### API Endpoints
 
@@ -213,6 +209,7 @@ to the appropriate sub-command help for instructions on setting up completion in
 * Does not support signed SAML requests
 * Does not support encrypted SAML requests
 * IdP initiated flow currently doesn't work (hopefully fixed soon)
+* the `client sssion-get` and `client session-del` commands sometimes fail
 
 ## License
 
