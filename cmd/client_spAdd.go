@@ -10,7 +10,7 @@ import (
 // spAddCmd represents the spAdd command
 var spAddCmd = &cobra.Command{
 	Use:     "sp-add",
-	Aliases: []string{"sa"},
+	Aliases: []string{"spa"},
 	Short:   "Register a new service provider",
 	Run: func(cmd *cobra.Command, args []string) {
 		// read command line arguments
