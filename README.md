@@ -1,5 +1,7 @@
 # plasmid
 
+[![Build](https://github.com/mdeous/plasmid/actions/workflows/build.yml/badge.svg)](https://github.com/mdeous/plasmid/actions/workflows/build.yml)
+
 Basic SAML identity provider for testing service providers.
 
 > **Warning**
