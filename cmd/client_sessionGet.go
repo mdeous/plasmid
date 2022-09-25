@@ -44,9 +44,7 @@ var sessionGetCmd = &cobra.Command{
 
 		// get session info
 		session, err := c.SessionGet(sessionId)
-		if err != nil {
-			logr.Fatalf(err.Error())
-		}
+		handleError(err)
 		data, err := json.MarshalIndent(session, "", "  ")
 		if err != nil {
 			logr.Fatalf("unable to serialize session '%s': %v", sessionId, err)
@@ -58,4 +56,6 @@ var sessionGetCmd = &cobra.Command{
 func init() {
 	clientCmd.AddCommand(sessionGetCmd)
 	sessionGetCmd.Flags().StringP("session-id", "s", "", "id of the session to query")
+	err := sessionGetCmd.MarkFlagRequired("session-id")
+	handleError(err)
 }
