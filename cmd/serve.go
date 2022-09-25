@@ -3,6 +3,7 @@ package cmd
 import (
 	"crypto/rsa"
 	"crypto/x509"
+	"errors"
 	"github.com/crewjam/saml/samlidp"
 	"github.com/mdeous/plasmid/pkg/client"
 	"github.com/mdeous/plasmid/pkg/config"
@@ -31,18 +32,24 @@ var serveCmd = &cobra.Command{
 			err     error
 		)
 
-		// load or generate identity provider keys
-		if viper.GetString(config.CertKeyFile) != "" {
-			privKey, err = utils.LoadPrivateKey(viper.GetString(config.CertKeyFile))
-			handleError(err)
-		} else {
+		// load or generate private key
+		keyFile := viper.GetString(config.CertKeyFile)
+		_, err = os.Stat(keyFile)
+		if errors.Is(err, os.ErrNotExist) {
+			logr.Printf("private key file '%s' not found, generating one", keyFile)
 			privKey, err = utils.GeneratePrivateKey(viper.GetInt(config.CertKeySize))
 			handleError(err)
-		}
-		if viper.GetString(config.CertCertificateFile) != "" {
-			cert, err = utils.LoadCertificate(viper.GetString(config.CertCertificateFile))
-			handleError(err)
 		} else {
+			logr.Printf("loading private key: %s", keyFile)
+			privKey, err = utils.LoadPrivateKey(keyFile)
+			handleError(err)
+		}
+
+		// load or generate certificate
+		certFile := viper.GetString(config.CertCertificateFile)
+		_, err = os.Stat(certFile)
+		if errors.Is(err, os.ErrNotExist) {
+			logr.Printf("certificate file '%s' not found, generating one", certFile)
 			cert, err = utils.GenerateCertificate(
 				privKey,
 				viper.GetString(config.CertCaOrg),
@@ -54,13 +61,17 @@ var serveCmd = &cobra.Command{
 				viper.GetInt(config.CertCaExpYears),
 			)
 			handleError(err)
+		} else {
+			logr.Printf("loading certificate: %s", certFile)
+			cert, err = utils.LoadCertificate(certFile)
+			handleError(err)
 		}
 
 		// prepare idp server
 		logr.Println("setting up identity provider server")
 		baseUrl, err := url.Parse(viper.GetString(config.BaseUrl))
 		if err != nil {
-			logr.Fatalf("invalid base URL '%s': %v", viper.GetString(config.BaseUrl), err)
+			logr.Fatalf("invalid base URL '%s': %v", baseUrl, err)
 		}
 		idp, err := server.New(
 			viper.GetString(config.Host),
