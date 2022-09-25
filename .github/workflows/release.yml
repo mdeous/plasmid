@@ -31,9 +31,23 @@ jobs:
       - name: Compile code
         run: make cross-compile
 
+      - name: Set release version
+        id: version
+        run: |
+          make
+          plasmid_version="$(./plasmid version)"
+          version=""
+          if [ "${GITHUB_REF}" == "refs/heads/main" ]; then
+            version="nightly-${plasmid_version}"
+          else
+            version="${plasmid_version}"
+          fi
+          echo "::set-output name=${version}"
+
       - name: Publish release
         uses: ncipollo/release-action@v1
         with:
+          tag: ${{ steps.version.outputs.name }}
           artifacts: "build/plasmid-*"
           token: ${{ secrets.GITHUB_TOKEN }}
           allowUpdates: true
