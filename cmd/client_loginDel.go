@@ -21,7 +21,7 @@ var loginDelCmd = &cobra.Command{
 		c, err := client.New(viper.GetString(config.BaseUrl))
 		handleError(err)
 
-		// delete service
+		// delete shortcut
 		err = c.ShortcutDel(name)
 		handleError(err)
 	},
