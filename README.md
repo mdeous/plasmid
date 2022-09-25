@@ -15,19 +15,19 @@ Basic SAML identity provider for testing service providers.
 * [Configuration](#configuration)
 * [Usage](#usage)
   * [Example](#example)
+  * [Docker](#docker)
   * [Starting the Identity Provider](#starting-the-identity-provider)
   * [Interacting With a Running Instance](#interacting-with-a-running-instance)
   * [API Endpoints](#api-endpoints)
-  * [Commands Completion](#commands-completion)
 * [Known Limitations](#known-limitations)
 * [License](#license)
 ---
 
 ## Introduction
 
-Plasmid is a SAML identity provider based on the implementation from [`crewjam/saml`](https://github.com/crewjam/saml), 
-it is meant to be used as an easy way to test SAML service providers without requiring a complicated setup. 
-It can be configured via a YAML file, or using environment variables, and has default values for most settings, 
+Plasmid is a SAML identity provider (IdP) based on the implementation from [`crewjam/saml`](https://github.com/crewjam/saml), 
+it is meant to be used as an easy way to test SAML service providers (SP) without requiring a complicated setup. 
+It can be configured via a YAML file or using environment variables, and has default values for most settings, 
 allowing to quickly get it working with minimal configuration.
 
 ## Installation
@@ -88,6 +88,10 @@ ngrok http 8000
 * In [`SAMLRaider`](https://github.com/portswigger/saml-raider), import the certificate and private key
 * You can begin testing the service provider and login using `admin:Password123`
 
+### Docker
+
+TODO
+
 ### Starting the Identity Provider
 
 To start the IdP with the bare minimum settings, simply run `plasmid serve`. The application will 
@@ -141,12 +145,12 @@ Refer to each commands help for more details on their usage.
 
 ### API Endpoints
 
-This section mainly exists as an inventory of exposed endpoints, most of those can be easily queried using the 
+The underlying IdP implementation exposes a number of API endpoints, this section merely exists 
+as an inventory of those endpoints. Most of those can be easily queried using the 
 [integrated client](#interacting-with-a-running-instance) via the `plasmid client` command.
 
-For more information about those endpoints, please refer to the code for their handlers in 
-[`crewjam/saml`](https://github.com/crewjam/saml), which are listed 
-[here](https://github.com/crewjam/saml/blob/5e0ffd290abf0be7dfd4f8279e03a963071544eb/samlidp/samlidp.go#L83-L121).
+For more information, please refer to the code for their handlers in [`crewjam/saml`](https://github.com/crewjam/saml), 
+which are listed [here](https://github.com/crewjam/saml/blob/5e0ffd290abf0be7dfd4f8279e03a963071544eb/samlidp/samlidp.go#L83-L121).
 
 #### SSO
 
@@ -198,18 +202,12 @@ For more information about those endpoints, please refer to the code for their h
 | `PUT`      | `/shortcuts/<link-name>` | create or update a login link for a service provider |
 | `DELETE`   | `/shortcuts/<link-name>` | delete a login link                                  |
 
-### Commands Completion
-
-Plasmid command-line arguments parsing is baseed on [`cobra`](https://github.com/spf13/cobra), and therefore
-provides completion for most shells through the `plasmid completion` command. Refer
-to the appropriate sub-command help for instructions on setting up completion in your shell.
-
 ## Known Limitations
 
 * Does not support signed SAML requests
 * Does not support encrypted SAML requests
 * IdP initiated flow currently doesn't work (hopefully fixed soon)
-* the `client sssion-get` and `client session-del` commands sometimes fail
+* the `client sssion-get` and `client session-del` commands sometimes fail (hopefully fixed soon)
 
 ## License
 
