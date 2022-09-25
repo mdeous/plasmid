@@ -3,7 +3,6 @@ package client
 import (
 	"bytes"
 	"fmt"
-	idp "github.com/crewjam/saml/samlidp"
 	"io"
 	"net/http"
 	"os"
@@ -12,10 +11,6 @@ import (
 
 type serviceIds struct {
 	Services []string `json:"services"`
-}
-
-type ServiceList struct {
-	Services []*idp.Service
 }
 
 func (p *PlasmidClient) ServiceAdd(service string, metaUrl string) error {

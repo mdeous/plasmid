@@ -10,10 +10,6 @@ type shortcutIds struct {
 	Shortcuts []string `json:"shortcuts"`
 }
 
-type ShortcutList struct {
-	Shortcuts []*idp.Shortcut
-}
-
 func (p *PlasmidClient) ShortcutAdd(shortcut *idp.Shortcut) error {
 	err := p.resourceAdd("shortcuts", shortcut.Name, shortcut)
 	if err != nil {
