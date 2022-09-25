@@ -42,7 +42,7 @@ jobs:
           else
             version="${plasmid_version}"
           fi
-          echo "::set-output name=${version}"
+          echo "::set-output name=name::${version}"
 
       - name: Publish release
         uses: ncipollo/release-action@v1
@@ -52,4 +52,4 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           allowUpdates: true
           omitBody:  true
-          preRelease: github.ref == 'refs/heads/main'
+          preRelease: ${{ github.ref == 'refs/heads/main' }}
