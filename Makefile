@@ -4,7 +4,7 @@ TAG_COMMIT := $(shell git rev-list --abbrev-commit --all --max-count=1)
 VERSION := $(shell git describe --abbrev=0 --tags --exact-match $(TAG_COMMIT) 2>/dev/null || true)
 DATE := $(shell git log -1 --format=%cd --date=format:"%Y%m%d%H%M")
 ifeq ($(VERSION),)
-    VERSION := $(DATE)
+    VERSION := nightly-$(DATE)
 endif
 LDFLAGS := "-X github.com/mdeous/plasmid/cmd.version=$(VERSION)"
 GO_FLAGS := -ldflags $(LDFLAGS)

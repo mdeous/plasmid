@@ -37,13 +37,7 @@ jobs:
         id: version
         run: |
           make
-          plasmid_version="$(./plasmid version)"
-          version=""
-          if [ "${GITHUB_REF}" == "refs/heads/main" ]; then
-            version="nightly-${plasmid_version}"
-          else
-            version="${plasmid_version}"
-          fi
+          version="$(./plasmid version)"
           echo "::set-output name=name::${version}"
 
       - name: Publish release
