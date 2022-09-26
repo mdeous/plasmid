@@ -52,6 +52,6 @@ jobs:
           automatic_release_tag: ${{ steps.version.outputs.name }}
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           prerelease: ${{ github.ref == 'refs/heads/main' }}
-          title: "plasmid ${{ steps.version.outputs.name }}"
+          title: ${{ steps.version.outputs.name }}
           files: |
             build/plasmid-*
