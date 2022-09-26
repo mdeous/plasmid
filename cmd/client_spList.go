@@ -24,9 +24,13 @@ var spListCmd = &cobra.Command{
 		handleError(err)
 
 		// display results
-		fmt.Println("Service providers:")
-		for _, svc := range services {
-			fmt.Println("- ", svc)
+		if len(services) > 0 {
+			fmt.Println("Service providers:")
+			for _, svc := range services {
+				fmt.Println("- ", svc)
+			}
+		} else {
+			fmt.Println("No service providers")
 		}
 	},
 }

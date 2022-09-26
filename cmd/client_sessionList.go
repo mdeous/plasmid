@@ -24,9 +24,13 @@ var sessionListCmd = &cobra.Command{
 		handleError(err)
 
 		// display results
-		fmt.Println("Sessions:")
-		for _, sess := range sessions {
-			fmt.Println("- ", sess)
+		if len(sessions) > 0 {
+			fmt.Println("Sessions:")
+			for _, sess := range sessions {
+				fmt.Println("- ", sess)
+			}
+		} else {
+			fmt.Println("No sessions")
 		}
 	},
 }

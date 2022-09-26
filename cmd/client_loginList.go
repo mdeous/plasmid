@@ -24,9 +24,13 @@ var loginListCmd = &cobra.Command{
 		handleError(err)
 
 		// display results
-		fmt.Println("Login links:")
-		for _, link := range shortcuts {
-			fmt.Println("- ", link)
+		if len(shortcuts) > 0 {
+			fmt.Println("Login links:")
+			for _, link := range shortcuts {
+				fmt.Println("- ", link)
+			}
+		} else {
+			fmt.Println("No login links")
 		}
 	},
 }
