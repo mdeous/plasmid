@@ -30,7 +30,7 @@ var sessionGetCmd = &cobra.Command{
 		sessions, err := c.SessionList()
 		handleError(err)
 
-		// check if seession exists
+		// check if session exists
 		sessionExists := false
 		for _, sessId := range sessions {
 			if sessId == sessionId {
