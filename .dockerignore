@@ -1,0 +1,7 @@
+.github
+plasmid
+*.pem
+*.md
+*.y*ml
+*.xml
+LICENSE
