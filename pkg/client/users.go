@@ -15,6 +15,19 @@ type UserList struct {
 	Users []*idp.User
 }
 
+func (p *PlasmidClient) UserGet(username string) (*idp.User, error) {
+	_, body, err := p.request(http.MethodGet, "/users/"+username, nil, 200)
+	if err != nil {
+		return nil, fmt.Errorf("unable to get information about user '%s': %v", username, err)
+	}
+	var user idp.User
+	err = json.Unmarshal(body, &user)
+	if err != nil {
+		return nil, fmt.Errorf("unable to deserialize user '%s': %v", username, err)
+	}
+	return &user, nil
+}
+
 func (p *PlasmidClient) UserAdd(user *idp.User) error {
 	err := p.resourceAdd("users", user.Name, user)
 	if err != nil {
@@ -23,32 +36,14 @@ func (p *PlasmidClient) UserAdd(user *idp.User) error {
 	return nil
 }
 
-func (p *PlasmidClient) UserList() (*UserList, error) {
+func (p *PlasmidClient) UserList() ([]string, error) {
 	// fetch existing usernames
 	ids := &userIds{}
 	err := p.resourceIds("users", ids)
 	if err != nil {
 		return nil, err
 	}
-
-	// build users list
-	ulist := &UserList{}
-	for _, username := range ids.Users {
-		// get detailed user info
-		_, resp, err := p.request(http.MethodGet, "/users/"+username, nil, http.StatusOK)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get details for user %s: %v", username, err)
-		}
-
-		// add user info to results
-		var user idp.User
-		err = json.Unmarshal(resp, &user)
-		if err != nil {
-			return nil, fmt.Errorf("failed to deserialize user %s info: %v", username, err)
-		}
-		ulist.Users = append(ulist.Users, &user)
-	}
-	return ulist, nil
+	return ids.Users, nil
 }
 
 func (p *PlasmidClient) UserDel(username string) error {
