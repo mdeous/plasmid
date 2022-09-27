@@ -208,7 +208,7 @@ which are listed [here](https://github.com/crewjam/saml/blob/5e0ffd290abf0be7dfd
 
 * Does not support signed SAML requests
 * Does not support encrypted SAML requests
-* IdP initiated flow currently doesn't work (hopefully fixed soon)
+* IdP initiated flow currently only works with existing session, but login form is broken (hopefully fixed soon)
 * the `client sssion-get` and `client session-del` commands sometimes fail (hopefully fixed soon)
 
 ## License
