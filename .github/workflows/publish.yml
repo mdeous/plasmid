@@ -41,8 +41,7 @@ jobs:
           if [ "${GITHUB_REF}" == "refs/heads/main" ]; then
             version="nightly"
           else
-            make
-            version="$(./plasmid version)"
+            version="$(make version)"
           fi
           echo "::set-output name=name::${version}"
 

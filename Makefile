@@ -9,7 +9,7 @@ endif
 LDFLAGS := "-X github.com/mdeous/plasmid/cmd.version=$(VERSION)"
 GO_FLAGS := -ldflags $(LDFLAGS)
 
-.PHONY: all clean rebuild deps update-deps cross-compile help
+.PHONY: all clean rebuild deps update-deps cross-compile version help
 
 all: $(BINARY_NAME) ## Default build action
 
@@ -32,6 +32,9 @@ update-deps: ## Update project dependencies
 cross-compile: ## Build for all supported platforms
 	gox -os="windows linux" -arch="386" -output="build/{{.Dir}}-$(VERSION)_{{.OS}}_{{.Arch}}" -ldflags=$(LDFLAGS)
 	gox -os="windows linux darwin" -arch="amd64" -output="build/{{.Dir}}-$(VERSION)_{{.OS}}_{{.Arch}}" -ldflags=$(LDFLAGS)
+
+version: ## Display current program version
+	@echo $(VERSION)
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
