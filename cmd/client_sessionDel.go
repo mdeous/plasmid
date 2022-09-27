@@ -10,13 +10,13 @@ import (
 
 // sessionDelCmd represents the sessionDel command
 var sessionDelCmd = &cobra.Command{
-	Use:     "session-del",
+	Use:     "session-del [session-id]",
 	Aliases: []string{"sd"},
+	Args:    cobra.ExactArgs(1),
 	Short:   "Delete an active user session",
 	Run: func(cmd *cobra.Command, args []string) {
 		// get session id from command line args
-		sessionId, err := cmd.Flags().GetString("session-id")
-		handleError(err)
+		sessionId := args[0]
 
 		// create plasmid client
 		c, err := client.New(viper.GetString(config.BaseUrl))
@@ -31,7 +31,4 @@ var sessionDelCmd = &cobra.Command{
 
 func init() {
 	clientCmd.AddCommand(sessionDelCmd)
-	sessionDelCmd.Flags().StringP("session-id", "s", "", "id of the session to delete")
-	err := sessionDelCmd.MarkFlagRequired("session-id")
-	handleError(err)
 }

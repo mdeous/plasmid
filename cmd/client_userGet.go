@@ -12,15 +12,13 @@ import (
 
 // userGetCmd represents the userGet command
 var userGetCmd = &cobra.Command{
-	Use:     "user-get",
+	Use:     "user-get [username]",
 	Aliases: []string{"user", "u", "ug"},
+	Args:    cobra.ExactArgs(1),
 	Short:   "Get details about a user account",
 	Run: func(cmd *cobra.Command, args []string) {
 		// get target user from command line args
-		username, err := cmd.Flags().GetString("username")
-		if err != nil {
-			logr.Fatalf(err.Error())
-		}
+		username := args[0]
 
 		// create plasmid client
 		c, err := client.New(viper.GetString(config.BaseUrl))
@@ -55,7 +53,4 @@ var userGetCmd = &cobra.Command{
 
 func init() {
 	clientCmd.AddCommand(userGetCmd)
-	userGetCmd.Flags().StringP("username", "u", "", "username of the account")
-	err := userGetCmd.MarkFlagRequired("username")
-	handleError(err)
 }

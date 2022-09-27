@@ -12,15 +12,13 @@ import (
 
 // sessionGetCmd represents the sessionGet command
 var sessionGetCmd = &cobra.Command{
-	Use:     "session-get",
+	Use:     "session-get [session-id]",
 	Aliases: []string{"session", "s", "sg"},
+	Args:    cobra.ExactArgs(1),
 	Short:   "Get details about an active user session",
 	Run: func(cmd *cobra.Command, args []string) {
 		// get target session from command line args
-		sessionId, err := cmd.Flags().GetString("session-id")
-		if err != nil {
-			logr.Fatalf(err.Error())
-		}
+		sessionId := args[0]
 
 		// create plasmid client
 		c, err := client.New(viper.GetString(config.BaseUrl))
@@ -56,7 +54,4 @@ var sessionGetCmd = &cobra.Command{
 
 func init() {
 	clientCmd.AddCommand(sessionGetCmd)
-	sessionGetCmd.Flags().StringP("session-id", "s", "", "id of the session to query")
-	err := sessionGetCmd.MarkFlagRequired("session-id")
-	handleError(err)
 }

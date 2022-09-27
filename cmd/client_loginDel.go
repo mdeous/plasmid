@@ -9,13 +9,13 @@ import (
 
 // loginDelCmd represents the loginDel command
 var loginDelCmd = &cobra.Command{
-	Use:     "login-del",
+	Use:     "login-del [login-name]",
 	Aliases: []string{"ld"},
+	Args:    cobra.ExactArgs(1),
 	Short:   "Delete an idp initiated login link",
 	Run: func(cmd *cobra.Command, args []string) {
 		// get shortcut name from command line args
-		name, err := cmd.Flags().GetString("name")
-		handleError(err)
+		name := args[0]
 
 		// create plasmid client
 		c, err := client.New(viper.GetString(config.BaseUrl))
@@ -29,7 +29,4 @@ var loginDelCmd = &cobra.Command{
 
 func init() {
 	clientCmd.AddCommand(loginDelCmd)
-	loginDelCmd.Flags().StringP("name", "n", "", "Name of login link to delete")
-	err := loginDelCmd.MarkFlagRequired("name")
-	handleError(err)
 }
