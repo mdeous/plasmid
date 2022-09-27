@@ -1,0 +1,117 @@
+name: Docker Image
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+    paths:
+      - Dockerfile
+  pull_request:
+    branches:
+      - main
+    paths:
+      - Dockerfile
+
+env:
+  IMAGE_NAME: mdeous/plasmid
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+
+    permissions:
+      packages: read
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Log into GitHub container registry
+        uses: docker/login-action@v2.0.0
+        with:
+          registry: ghcr.io
+          username: mdeous
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+        with:
+          install: true
+
+      - name: Pull latest image
+        run: docker pull ghcr.io/${IMAGE_NAME}:latest
+
+      - name: Build image
+        uses: docker/build-push-action@v3.1.1
+        with:
+          pull: true
+          push: false
+          cache-from: ghcr.io/${{ env.IMAGE_NAME }}:latest
+          tags: ${{ env.IMAGE_NAME }}:ci
+          outputs: type=docker,dest=/tmp/image.tar
+
+      - name: Upload image archive
+        uses: actions/upload-artifact@v3
+        with:
+          name: pkgbuilder-image
+          path: /tmp/image.tar
+
+  publish:
+    name: Publish
+    needs: build
+    if: github.event_type != 'pull_request'
+    runs-on: ubuntu-latest
+
+    permissions:
+      packages: write
+      contents: read
+
+    strategy:
+      matrix:
+        registry:
+          - ghcr.io
+          - docker.io
+        include:
+          - registry: ghcr.io
+            secret: GITHUB_TOKEN
+          - registry: docker.io
+            secret: DOCKER_TOKEN
+
+    steps:
+      - name: Download image archive
+        uses: actions/download-artifact@v3
+        with:
+          name: pkgbuilder-image
+          path: /tmp/
+
+      - name: Import image
+        run: docker load --input /tmp/image.tar
+
+      - name: Log into Docker registry
+        uses: docker/login-action@v2.0.0
+        with:
+          registry: ${{ matrix.registry }}
+          username: mdeous
+          password: ${{ secrets[matrix.secret] }}
+
+      - name: Get image version
+        id: get_version
+        run: |
+          version=""
+          if [ "${GITHUB_REF}" == "refs/heads/main" ]; then
+            version="latest"
+          else
+            version="${GITHUB_REF##*/}"
+          fi
+          echo "::set-output name=version::${version}"
+
+      - name: Tag image
+        if: github.ref == 'refs/heads/main
+        run: docker tag ${IMAGE_NAME}:ci ${{ matrix.registry }}/${IMAGE_NAME}:${{ steps.get_version.outputs.version }}
+
+      - name: Push image to container registry
+        run: docker push ${{ matrix.registry }}/${IMAGE_NAME}:${{ steps.get_version.outputs.version }}
