@@ -21,6 +21,13 @@ var loginDelCmd = &cobra.Command{
 		c, err := client.New(viper.GetString(config.BaseUrl))
 		handleError(err)
 
+		// check if shortcut exists
+		links, err := c.ShortcutList()
+		handleError(err)
+		if !stringInArray(name, links) {
+			logr.Fatalf("link not found: %s", name)
+		}
+
 		// delete shortcut
 		err = c.ShortcutDel(name)
 		handleError(err)

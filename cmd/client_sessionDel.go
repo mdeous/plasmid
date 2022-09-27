@@ -22,6 +22,13 @@ var sessionDelCmd = &cobra.Command{
 		c, err := client.New(viper.GetString(config.BaseUrl))
 		handleError(err)
 
+		// check if session exists
+		sessions, err := c.SessionList()
+		handleError(err)
+		if !stringInArray(sessionId, sessions) {
+			logr.Fatalf("session not found: %s", sessionId)
+		}
+
 		// delete session
 		// FIXME: depending on the chars in the session id, request fails
 		err = c.SessionDel(sessionId)

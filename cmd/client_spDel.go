@@ -16,14 +16,21 @@ var spDelCmd = &cobra.Command{
 	Short:   "Delete a service provider",
 	Run: func(cmd *cobra.Command, args []string) {
 		// get target service from command line
-		svc := args[0]
+		sp := args[0]
 
 		// create plasmid client
 		c, err := client.New(viper.GetString(config.BaseUrl))
 		handleError(err)
 
+		// check if sp exists
+		sps, err := c.ServiceList()
+		handleError(err)
+		if !stringInArray(sp, sps) {
+			logr.Fatalf("service provider not found: %s", sp)
+		}
+
 		// delete service
-		err = c.ServiceDel(svc)
+		err = c.ServiceDel(sp)
 		handleError(err)
 	},
 }

@@ -21,6 +21,13 @@ var userDelCmd = &cobra.Command{
 		c, err := client.New(viper.GetString(config.BaseUrl))
 		handleError(err)
 
+		// check if user exists
+		users, err := c.UserList()
+		handleError(err)
+		if !stringInArray(username, users) {
+			logr.Fatalf("user not found: %s", username)
+		}
+
 		// delete user
 		err = c.UserDel(username)
 		handleError(err)
