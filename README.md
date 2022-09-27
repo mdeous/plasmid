@@ -143,7 +143,7 @@ Flags:
 Use "plasmid client [command] --help" for more information about a command.
 ```
 
-Refer to each commands help for more details on their usage.
+Refer to the help for each command for more details on their usage.
 
 ### API Endpoints
 
