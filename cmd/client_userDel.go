@@ -10,7 +10,7 @@ import (
 // userDelCmd represents the userDel command
 var userDelCmd = &cobra.Command{
 	Use:     "user-del [username]",
-	Aliases: []string{"ud"},
+	Aliases: []string{"userdel", "ud"},
 	Args:    cobra.ExactArgs(1),
 	Short:   "Delete an user account",
 	Run: func(cmd *cobra.Command, args []string) {

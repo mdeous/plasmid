@@ -11,7 +11,7 @@ import (
 // spDelCmd represents the spGet command
 var spDelCmd = &cobra.Command{
 	Use:     "sp-del [sp-name]",
-	Aliases: []string{"spd"},
+	Aliases: []string{"spdel", "spd"},
 	Args:    cobra.ExactArgs(1),
 	Short:   "Delete a service provider",
 	Run: func(cmd *cobra.Command, args []string) {

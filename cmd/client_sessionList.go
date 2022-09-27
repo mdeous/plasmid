@@ -12,7 +12,7 @@ import (
 // sessionListCmd represents the sessionList command
 var sessionListCmd = &cobra.Command{
 	Use:     "session-list",
-	Aliases: []string{"sessions", "sl"},
+	Aliases: []string{"sessions", "sessionlist", "sl"},
 	Short:   "List active user sessions",
 	Run: func(cmd *cobra.Command, args []string) {
 		// create plasmid client

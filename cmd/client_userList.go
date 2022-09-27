@@ -11,7 +11,7 @@ import (
 // userListCmd represents the list command
 var userListCmd = &cobra.Command{
 	Use:     "user-list",
-	Aliases: []string{"users", "ul", "u"},
+	Aliases: []string{"users", "userlist", "ul", "u"},
 	Short:   "List user accounts",
 	Run: func(cmd *cobra.Command, args []string) {
 		// create plasmid client

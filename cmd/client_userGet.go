@@ -13,7 +13,7 @@ import (
 // userGetCmd represents the userGet command
 var userGetCmd = &cobra.Command{
 	Use:     "user-get [username]",
-	Aliases: []string{"user", "u", "ug"},
+	Aliases: []string{"user", "userget", "u", "ug"},
 	Args:    cobra.ExactArgs(1),
 	Short:   "Get details about a user account",
 	Run: func(cmd *cobra.Command, args []string) {

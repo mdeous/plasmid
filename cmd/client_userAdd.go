@@ -12,7 +12,7 @@ import (
 // userAddCmd represents the user-add command
 var userAddCmd = &cobra.Command{
 	Use:     "user-add",
-	Aliases: []string{"ua"},
+	Aliases: []string{"useradd", "ua"},
 	Short:   "Create a new user account",
 	Run: func(cmd *cobra.Command, args []string) {
 		// create plasmid client

@@ -13,7 +13,7 @@ import (
 // sessionGetCmd represents the sessionGet command
 var sessionGetCmd = &cobra.Command{
 	Use:     "session-get [session-id]",
-	Aliases: []string{"session", "s", "sg"},
+	Aliases: []string{"session", "sessionget", "s", "sg"},
 	Args:    cobra.ExactArgs(1),
 	Short:   "Get details about an active user session",
 	Run: func(cmd *cobra.Command, args []string) {

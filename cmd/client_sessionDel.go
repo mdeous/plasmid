@@ -11,7 +11,7 @@ import (
 // sessionDelCmd represents the sessionDel command
 var sessionDelCmd = &cobra.Command{
 	Use:     "session-del [session-id]",
-	Aliases: []string{"sd"},
+	Aliases: []string{"sessiondel", "sd"},
 	Args:    cobra.ExactArgs(1),
 	Short:   "Delete an active user session",
 	Run: func(cmd *cobra.Command, args []string) {
