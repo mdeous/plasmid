@@ -24,19 +24,10 @@ var sessionGetCmd = &cobra.Command{
 		c, err := client.New(viper.GetString(config.BaseUrl))
 		handleError(err)
 
-		// fetch sessions list
+		// check if session exists
 		sessions, err := c.SessionList()
 		handleError(err)
-
-		// check if session exists
-		sessionExists := false
-		for _, sessId := range sessions {
-			if sessId == sessionId {
-				sessionExists = true
-				break
-			}
-		}
-		if !sessionExists {
+		if !stringInArray(sessionId, sessions) {
 			logr.Fatalf("session not found: %s", sessionId)
 		}
 

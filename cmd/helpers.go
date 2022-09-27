@@ -70,3 +70,12 @@ func handleError(err error) {
 		logr.Fatalf(err.Error())
 	}
 }
+
+func stringInArray(resourceId string, knownIds []string) bool {
+	for _, rid := range knownIds {
+		if rid == resourceId {
+			return true
+		}
+	}
+	return false
+}

@@ -24,19 +24,10 @@ var userGetCmd = &cobra.Command{
 		c, err := client.New(viper.GetString(config.BaseUrl))
 		handleError(err)
 
-		// fetch users list
+		// check if user1 exists
 		users, err := c.UserList()
 		handleError(err)
-
-		// check if user1 exists
-		userExists := false
-		for _, sessId := range users {
-			if sessId == username {
-				userExists = true
-				break
-			}
-		}
-		if !userExists {
+		if !stringInArray(username, users) {
 			logr.Fatalf("user not found: %s", username)
 		}
 
