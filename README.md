@@ -16,7 +16,8 @@ Basic SAML identity provider for testing service providers.
   * [Pre-built Binaries](#pre-built-binaries)
 * [Configuration](#configuration)
 * [Usage](#usage)
-  * [Example](#example)
+  * [Example (SP-initiated)](#example-sp-initiated)
+  * [Example (IdP-initiated)](#example-idp-initiated)
   * [Docker](#docker)
   * [Starting the Identity Provider](#starting-the-identity-provider)
   * [Interacting With a Running Instance](#interacting-with-a-running-instance)
@@ -66,7 +67,7 @@ at the root of the project folder.
 
 ## Usage
 
-### Example
+### Example (SP-initiated)
 
 If you don't care about all the reading and just want to copy paste stuff and get started, this section
 is for you. This example demonstrates how to setup a test environment using [`ngrok`](https://ngrok.com/)
@@ -85,10 +86,29 @@ ngrok http 8000
 ./plasmid serve -u <ngrok-url>
 ```
 
-* Using the generated `metadata.xml` file, register the identity provider on the service provider
-  you want to test
+* Using the generated `metadata.xml` file (or the `<base-url>/metadata` URL), register the plasmid 
+  instance on the service provider you want to test
 * In [`SAMLRaider`](https://github.com/portswigger/saml-raider), import the certificate and private key
 * You can begin testing the service provider and login using `admin:Password123`
+
+### Example (IdP-initiated)
+
+* Follow the steps described in the [SP-initiated example](#example-sp-initiated) above, and then log 
+  into the service provider using the SP-initiated flow in order to create a session in plasmid. (this is
+  needed as a workaround to a bug with sp-initiated flow in the underlying SAML library)
+* Create a new link in plasmid for the service provider
+
+```bash
+./plasmid client login-add -n "<link-name>" -e "<sp-entity-id>"
+```
+
+* Start the IdP-initiated flow
+
+```bash
+./plasmid client login "<login-name>"
+```
+
+* A new browser window should open and the login flow should start
 
 ### Docker
 
