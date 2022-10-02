@@ -1,14 +1,20 @@
 GO_BINARY ?= $(shell which go)
 BINARY_NAME ?= $(shell basename $(CURDIR))
-IMAGE_VERSION ?= dev
+
 TAG_COMMIT := $(shell git rev-list --abbrev-commit --all --max-count=1)
 VERSION := $(shell git describe --abbrev=0 --tags --exact-match $(TAG_COMMIT) 2>/dev/null || true)
 DATE := $(shell git log -1 --format=%cd --date=format:"%Y%m%d%H%M")
 ifeq ($(VERSION),)
     VERSION := nightly-$(DATE)
 endif
+
 LDFLAGS := "-X github.com/mdeous/plasmid/cmd.version=$(VERSION)"
 GO_FLAGS := -ldflags $(LDFLAGS)
+
+IMAGE_VERSION ?= dev
+IMAGE_TAG := mdeous/plasmid:$(IMAGE_VERSION)
+IMAGE_CACHE := --pull --cache-from=mdeous/plasmid:latest --cache-from mdeous/plasmid:dev
+IMAGE_ARGS := --build-arg=VERSION=$(VERSION)
 
 .PHONY: all clean rebuild deps update-deps cross-compile docker-image version help
 
@@ -35,7 +41,7 @@ cross-compile: ## Build for all supported platforms
 	gox -os="windows linux darwin" -arch="amd64" -output="build/{{.Dir}}-$(VERSION)_{{.OS}}_{{.Arch}}" -ldflags=$(LDFLAGS)
 
 docker-image: ## Build the docker image
-	@docker build --pull --cache-from=mdeous/plasmid:latest --cache-from mdeous/plasmid:dev -t mdeous/plasmid:$(IMAGE_VERSION) .
+	docker build $(IMAGE_ARGS) $(IMAGE_CACHE) -t $(IMAGE_TAG) .
 
 version: ## Display current program version
 	@echo $(VERSION)
