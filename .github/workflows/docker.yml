@@ -22,6 +22,9 @@ jobs:
       packages: read
       contents: read
 
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -32,6 +35,17 @@ jobs:
           registry: ghcr.io
           username: mdeous
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get release version
+        id: get_version
+        run: |
+          version=""
+          if [ "${GITHUB_REF}" == "refs/heads/main" ]; then
+            version="nightly"
+          else
+            version="$(make version)"
+          fi
+          echo "::set-output name=version::${version}"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
@@ -49,6 +63,7 @@ jobs:
           cache-from: ghcr.io/${{ env.IMAGE_NAME }}:latest
           tags: ${{ env.IMAGE_NAME }}:ci
           outputs: type=docker,dest=/tmp/image.tar
+          build-args: "VERSION=${{ steps.get_version.outputs.version }}"
 
       - name: Upload image archive
         uses: actions/upload-artifact@v3
@@ -94,20 +109,9 @@ jobs:
           username: mdeous
           password: ${{ secrets[matrix.secret] }}
 
-      - name: Get image version
-        id: get_version
-        run: |
-          version=""
-          if [ "${GITHUB_REF}" == "refs/heads/main" ]; then
-            version="latest"
-          else
-            version="${GITHUB_REF##*/}"
-          fi
-          echo "::set-output name=version::${version}"
-
       - name: Tag image
         if: github.ref == 'refs/heads/main
-        run: docker tag ${IMAGE_NAME}:ci ${{ matrix.registry }}/${IMAGE_NAME}:${{ steps.get_version.outputs.version }}
+        run: docker tag ${IMAGE_NAME}:ci ${{ matrix.registry }}/${IMAGE_NAME}:${{ needs.build.outputs.version }}
 
       - name: Push image to container registry
-        run: docker push ${{ matrix.registry }}/${IMAGE_NAME}:${{ steps.get_version.outputs.version }}
+        run: docker push ${{ matrix.registry }}/${IMAGE_NAME}:${{ needs.build.outputs.version }}
