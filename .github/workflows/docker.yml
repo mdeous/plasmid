@@ -111,7 +111,7 @@ jobs:
           password: ${{ secrets[matrix.secret] }}
 
       - name: Tag image
-        if: github.ref == 'refs/heads/main
+        if: github.ref == 'refs/heads/main'
         run: docker tag ${IMAGE_NAME}:ci ${{ matrix.registry }}/${IMAGE_NAME}:${{ needs.build.outputs.version }}
 
       - name: Push image to container registry
