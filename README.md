@@ -48,7 +48,9 @@ go build .
 
 ### Pre-built Binaries
 
-TODO
+Download the latest release for your plaform from the [releases](https://github.com/mdeous/plasmid/releases/latest)
+page. You can also live on the edge by using the [nightly](https://github.com/mdeous/plasmid/releases/tag/nightly)
+release, which always contains the latest changes from the `main` branch.
 
 ## Configuration
 
@@ -94,7 +96,7 @@ ngrok http 8000
 ### Example (IdP-initiated)
 
 * Follow the steps described in the [SP-initiated example](#example-sp-initiated) above, and then log 
-  into the service provider using the SP-initiated flow in order to create a session in plasmid. (this is
+  into the service provider using the SP-initiated flow in order to create a session in plasmid (this is
   needed as a workaround to a bug with sp-initiated flow in the underlying SAML library)
 * Create a new link in plasmid for the service provider
 
