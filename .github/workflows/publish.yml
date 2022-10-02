@@ -34,8 +34,8 @@ jobs:
       - name: Compile code
         run: make cross-compile
 
-      - name: Set release version
-        id: version
+      - name: Get release version
+        id: get_version
         run: |
           version=""
           if [ "${GITHUB_REF}" == "refs/heads/main" ]; then
@@ -43,14 +43,14 @@ jobs:
           else
             version="$(make version)"
           fi
-          echo "::set-output name=name::${version}"
+          echo "::set-output name=version::${version}"
 
       - name: Publish release
         uses: marvinpinto/action-automatic-releases@v1.2.1
         with:
-          automatic_release_tag: ${{ steps.version.outputs.name }}
+          automatic_release_tag: ${{ steps.get_version.outputs.version }}
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           prerelease: ${{ github.ref == 'refs/heads/main' }}
-          title: ${{ steps.version.outputs.name }}
+          title: ${{ steps.get_version.outputs.version }}
           files: |
             build/plasmid-*
