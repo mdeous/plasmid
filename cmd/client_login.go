@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"github.com/mdeous/plasmid/pkg/client"
 	"github.com/mdeous/plasmid/pkg/config"
 	"github.com/pkg/browser"
@@ -19,6 +20,7 @@ var loginCmd = &cobra.Command{
 		link := args[0]
 		relayState, err := cmd.Flags().GetString("relay-state")
 		handleError(err)
+		noBrowser, err := cmd.Flags().GetBool("no-browser")
 
 		// create plasmid client
 		c, err := client.New(viper.GetString(config.BaseUrl))
@@ -48,7 +50,11 @@ var loginCmd = &cobra.Command{
 		loginLink := viper.GetString(config.BaseUrl) + linkPath
 
 		// open link with browser
-		err = browser.OpenURL(loginLink)
+		if noBrowser {
+			fmt.Println(loginLink)
+		} else {
+			err = browser.OpenURL(loginLink)
+		}
 		handleError(err)
 	},
 }
@@ -56,4 +62,5 @@ var loginCmd = &cobra.Command{
 func init() {
 	clientCmd.AddCommand(loginCmd)
 	loginCmd.Flags().StringP("relay-state", "r", "", "relay state value")
+	loginCmd.Flags().BoolP("no-browser", "n", false, "do not open a browser, just output the URL")
 }
