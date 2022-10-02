@@ -54,10 +54,13 @@ release, which always contains the latest changes from the `main` branch.
 
 ## Configuration
 
-Plasmid takes its configuration either from a YAML file named `plasmid.yaml` and located in the current
-directory, or from environment variables. Some values can also be set from the command-line. Environment
-variables take precedence over the configuration file, and command line arguments take precedence over
-environment variables.
+Plasmid can be started without any configuration, it will then automatically generate a certificate and 
+private key and create a user in the idp (credentials: `admin:Password123`).
+
+The default configuration can be overridden either with a YAML file named `plasmid.yaml` and located in 
+the current directory, or from environment variables. Some values can also be set from the command-line. 
+Environment variables take precedence over the configuration file, and command line arguments take precedence 
+over environment variables.
 
 All the configuration entry names can be translated from their path in the YAML file to the environment 
 variable name by replacing `.` with `_`, converting it to upper case, and prepending `IDP_` to it. 
@@ -166,6 +169,35 @@ Use "plasmid client [command] --help" for more information about a command.
 ```
 
 Refer to the help for each command for more details on their usage.
+
+#### Common Operations
+
+* Adding a new user to the IdP:
+
+```bash
+./plasmid client user-add -u "<username>" -e "<email>" -p "<password>"
+```
+
+* Deleting an active user session:
+
+```bash
+# list active sessions ids
+./plasmd client sessions
+# delete the session
+./plasmid client session-del "<session-id>"
+```
+
+* Adding a new SP to the IdP:
+
+```bash
+./plasmid client sp-add -m "<metadata_url_or_file>" -s "<service-name>"
+```
+
+* Creating a new IdP-initiated login link:
+
+```bash
+./plasmid client login-add -n "<link-name>" -e "<sp-entity-id>"
+```
 
 ### API Endpoints
 
