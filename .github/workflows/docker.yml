@@ -23,9 +23,6 @@ jobs:
       packages: read
       contents: read
 
-    outputs:
-      version: ${{ steps.get_version.outputs.version }}
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -37,7 +34,7 @@ jobs:
           username: mdeous
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Get release version
+      - name: Get plasmid version
         id: get_version
         run: |
           version=""
@@ -111,9 +108,20 @@ jobs:
           username: mdeous
           password: ${{ secrets[matrix.secret] }}
 
+      - name: Get image version
+        id: get_version
+        run: |
+          version=""
+          if [ "${GITHUB_REF}" == "refs/heads/main" ]; then
+            version="latest"
+          else
+            version="${GITHUB_REF##*/}"
+          fi
+          echo "::set-output name=version::${version}"
+
       - name: Tag image
         if: github.ref == 'refs/heads/main'
-        run: docker tag ${IMAGE_NAME}:ci ${{ matrix.registry }}/${IMAGE_NAME}:${{ needs.build.outputs.version }}
+        run: docker tag ${IMAGE_NAME}:ci ${{ matrix.registry }}/${IMAGE_NAME}:${{ jobs.get_version.outputs.version }}
 
       - name: Push image to container registry
-        run: docker push ${{ matrix.registry }}/${IMAGE_NAME}:${{ needs.build.outputs.version }}
+        run: docker push ${{ matrix.registry }}/${IMAGE_NAME}:${{ jobs,.get_version.outputs.version }}
