@@ -2,6 +2,6 @@
 plasmid
 *.pem
 *.md
-*.y*ml
+*.yaml
 *.xml
 LICENSE
