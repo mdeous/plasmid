@@ -124,4 +124,4 @@ jobs:
         run: docker tag ${IMAGE_NAME}:ci ${{ matrix.registry }}/${IMAGE_NAME}:${{ steps.get_version.outputs.version }}
 
       - name: Push image to container registry
-        run: docker push ${{ matrix.registry }}/${IMAGE_NAME}:${{ steps,.get_version.outputs.version }}
+        run: docker push ${{ matrix.registry }}/${IMAGE_NAME}:${{ steps.get_version.outputs.version }}
