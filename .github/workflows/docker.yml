@@ -9,12 +9,6 @@ on:
     paths:
       - Dockerfile
       - '**.go'
-  pull_request:
-    branches:
-      - main
-    paths:
-      - Dockerfile
-      - '**.go'
 
 env:
   IMAGE_NAME: mdeous/plasmid
