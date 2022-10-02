@@ -35,7 +35,7 @@ cross-compile: ## Build for all supported platforms
 	gox -os="windows linux darwin" -arch="amd64" -output="build/{{.Dir}}-$(VERSION)_{{.OS}}_{{.Arch}}" -ldflags=$(LDFLAGS)
 
 docker-image: ## Build the docker image
-	@docker build --cache-from=mdeous/plasmid:latest --cache-from mdeous/plasmid:dev -t mdeous/plasmid:$(IMAGE_VERSION) .
+	@docker build --pull --cache-from=mdeous/plasmid:latest --cache-from mdeous/plasmid:dev -t mdeous/plasmid:$(IMAGE_VERSION) .
 
 version: ## Display current program version
 	@echo $(VERSION)
