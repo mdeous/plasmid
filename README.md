@@ -1,6 +1,7 @@
 # plasmid
 
 [![Build](https://github.com/mdeous/plasmid/actions/workflows/build.yml/badge.svg)](https://github.com/mdeous/plasmid/actions/workflows/build.yml)
+[![Docker Image](https://github.com/mdeous/plasmid/actions/workflows/docker.yml/badge.svg)](https://github.com/mdeous/plasmid/actions/workflows/docker.yml)
 
 Basic SAML identity provider for testing service providers.
 
@@ -117,7 +118,13 @@ ngrok http 8000
 
 ### Docker
 
-TODO
+To run plasmid with Docker, simply start the image and pass any needed arguments to it.
+Optionally, you can mount a configuration file to the container's `/plasmid/plasmid.yaml`
+path, or use environment variables.
+
+```bash
+docker run mdeous/plasmid:latest serve
+```
 
 ### Starting the Identity Provider
 
@@ -182,7 +189,7 @@ Refer to the help for each command for more details on their usage.
 
 ```bash
 # list active sessions ids
-./plasmd client sessions
+./plasmid client sessions
 # delete the session
 ./plasmid client session-del "<session-id>"
 ```
