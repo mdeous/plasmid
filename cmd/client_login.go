@@ -10,13 +10,13 @@ import (
 
 // loginCmd represents the login command
 var loginCmd = &cobra.Command{
-	Use:     "login",
+	Use:     "login [link-name]",
 	Aliases: []string{"l"},
+	Args:    cobra.ExactArgs(1),
 	Short:   "Start an idp initiated login flow (opens a browser)",
 	Run: func(cmd *cobra.Command, args []string) {
 		// get link name from command line args
-		link, err := cmd.Flags().GetString("link")
-		handleError(err)
+		link := args[0]
 		relayState, err := cmd.Flags().GetString("relay-state")
 		handleError(err)
 
@@ -55,8 +55,5 @@ var loginCmd = &cobra.Command{
 
 func init() {
 	clientCmd.AddCommand(loginCmd)
-	loginCmd.Flags().StringP("link", "l", "", "login link name")
-	err := loginCmd.MarkFlagRequired("link")
-	handleError(err)
 	loginCmd.Flags().StringP("relay-state", "r", "", "relay state value")
 }

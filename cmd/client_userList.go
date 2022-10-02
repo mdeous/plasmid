@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"encoding/json"
 	"fmt"
 	"github.com/mdeous/plasmid/pkg/client"
 	"github.com/mdeous/plasmid/pkg/config"
@@ -12,7 +11,7 @@ import (
 // userListCmd represents the list command
 var userListCmd = &cobra.Command{
 	Use:     "user-list",
-	Aliases: []string{"users", "ul", "u"},
+	Aliases: []string{"users", "userlist", "ul", "u"},
 	Short:   "List user accounts",
 	Run: func(cmd *cobra.Command, args []string) {
 		// create plasmid client
@@ -23,9 +22,15 @@ var userListCmd = &cobra.Command{
 		users, err := c.UserList()
 		handleError(err)
 
-		// display results as JSON
-		data, _ := json.MarshalIndent(*users, "", "  ")
-		fmt.Println(string(data))
+		// display results
+		if len(users) > 0 {
+			fmt.Println("User accounts:")
+			for _, username := range users {
+				fmt.Println("- " + username)
+			}
+		} else {
+			fmt.Println("No user accounts")
+		}
 	},
 }
 

@@ -9,17 +9,24 @@ import (
 
 // userDelCmd represents the userDel command
 var userDelCmd = &cobra.Command{
-	Use:     "user-del",
-	Aliases: []string{"ud"},
+	Use:     "user-del [username]",
+	Aliases: []string{"userdel", "ud"},
+	Args:    cobra.ExactArgs(1),
 	Short:   "Delete an user account",
 	Run: func(cmd *cobra.Command, args []string) {
 		// get target username from command line
-		username, err := cmd.Flags().GetString("username")
-		handleError(err)
+		username := args[0]
 
 		// create plasmid client
 		c, err := client.New(viper.GetString(config.BaseUrl))
 		handleError(err)
+
+		// check if user exists
+		users, err := c.UserList()
+		handleError(err)
+		if !stringInArray(username, users) {
+			logr.Fatalf("user not found: %s", username)
+		}
 
 		// delete user
 		err = c.UserDel(username)
@@ -29,7 +36,4 @@ var userDelCmd = &cobra.Command{
 
 func init() {
 	clientCmd.AddCommand(userDelCmd)
-	userDelCmd.Flags().StringP("username", "u", "", "Handle of user to delete")
-	err := userDelCmd.MarkFlagRequired("username")
-	handleError(err)
 }

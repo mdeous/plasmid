@@ -12,7 +12,7 @@ import (
 // loginListCmd represents the loginList command
 var loginListCmd = &cobra.Command{
 	Use:     "login-list",
-	Aliases: []string{"logins", "ll"},
+	Aliases: []string{"logins", "loginlist", "ll"},
 	Short:   "List links for idp initiated login",
 	Run: func(cmd *cobra.Command, args []string) {
 		// create plasmid client

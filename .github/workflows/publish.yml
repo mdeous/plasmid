@@ -8,6 +8,7 @@ on:
       - '**.go'
     tags:
       - 'v*'
+  workflow_dispatch:
 
 jobs:
 
@@ -36,22 +37,20 @@ jobs:
       - name: Set release version
         id: version
         run: |
-          make
-          plasmid_version="$(./plasmid version)"
           version=""
           if [ "${GITHUB_REF}" == "refs/heads/main" ]; then
-            version="nightly-${plasmid_version}"
+            version="nightly"
           else
-            version="${plasmid_version}"
+            version="$(make version)"
           fi
           echo "::set-output name=name::${version}"
 
       - name: Publish release
-        uses: ncipollo/release-action@v1
+        uses: marvinpinto/action-automatic-releases@v1.2.1
         with:
-          tag: ${{ steps.version.outputs.name }}
-          artifacts: "build/plasmid-*"
-          token: ${{ secrets.GITHUB_TOKEN }}
-          allowUpdates: true
-          omitBody:  true
-          preRelease: ${{ github.ref == 'refs/heads/main' }}
+          automatic_release_tag: ${{ steps.version.outputs.name }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          prerelease: ${{ github.ref == 'refs/heads/main' }}
+          title: ${{ steps.version.outputs.name }}
+          files: |
+            build/plasmid-*

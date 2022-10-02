@@ -11,7 +11,7 @@ import (
 // loginAddCmd represents the loginAdd command
 var loginAddCmd = &cobra.Command{
 	Use:     "login-add",
-	Aliases: []string{"la"},
+	Aliases: []string{"loginadd", "la"},
 	Short:   "Create a new idp initiated login link",
 	Run: func(cmd *cobra.Command, args []string) {
 		// read command line arguments

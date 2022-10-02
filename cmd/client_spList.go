@@ -12,7 +12,7 @@ import (
 // spListCmd represents the serviceList command
 var spListCmd = &cobra.Command{
 	Use:     "sp-list",
-	Aliases: []string{"sps", "spl"},
+	Aliases: []string{"sps", "splist", "spl"},
 	Short:   "List service providers",
 	Run: func(cmd *cobra.Command, args []string) {
 		// create plasmid client
