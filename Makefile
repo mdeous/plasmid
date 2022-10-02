@@ -8,7 +8,7 @@ ifeq ($(VERSION),)
     VERSION := nightly-$(DATE)
 endif
 
-LDFLAGS := "-X github.com/mdeous/plasmid/cmd.version=$(VERSION)"
+LDFLAGS := "-s -w -X github.com/mdeous/plasmid/cmd.version=$(VERSION)"
 GO_FLAGS := -ldflags $(LDFLAGS)
 
 IMAGE_VERSION ?= dev
