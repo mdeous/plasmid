@@ -55,6 +55,7 @@ jobs:
 
       - name: Pull latest image
         run: docker pull ghcr.io/${IMAGE_NAME}:latest
+        continue-on-error: true
 
       - name: Build image
         uses: docker/build-push-action@v3.1.1
