@@ -1,6 +1,6 @@
 module github.com/mdeous/plasmid
 
-go 1.18
+go 1.19
 
 require (
 	github.com/crewjam/saml v0.4.8
