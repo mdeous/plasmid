@@ -43,6 +43,7 @@ jobs:
           else
             version="$(make version)"
           fi
+          echo "Version: ${version}"
           echo "::set-output name=version::${version}"
 
       - name: Publish release

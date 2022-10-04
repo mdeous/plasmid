@@ -43,6 +43,7 @@ jobs:
           else
             version="$(make version)"
           fi
+          echo "Version: ${version}"
           echo "::set-output name=version::${version}"
 
       - name: Set up Docker Buildx
@@ -117,6 +118,7 @@ jobs:
           else
             version="${GITHUB_REF##*/}"
           fi
+          echo "Image version: ${version}"
           echo "::set-output name=version::${version}"
 
       - name: Tag image
