@@ -6,7 +6,7 @@ require (
 	github.com/crewjam/saml v0.4.8
 	github.com/crewjam/saml/samlidp v0.0.0-20220625143334-5e0ffd290abf
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8
-	github.com/spf13/cobra v1.5.0
+	github.com/spf13/cobra v1.6.0
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.13.0
 	goji.io v2.0.2+incompatible
@@ -16,7 +16,7 @@ require (
 	github.com/beevik/etree v1.1.0 // indirect
 	github.com/fsnotify/fsnotify v1.5.4 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
-	github.com/inconshreveable/mousetrap v1.0.0 // indirect
+	github.com/inconshreveable/mousetrap v1.0.1 // indirect
 	github.com/jonboulle/clockwork v0.2.2 // indirect
 	github.com/magiconair/properties v1.8.6 // indirect
 	github.com/mattermost/xml-roundtrip-validator v0.1.0 // indirect
