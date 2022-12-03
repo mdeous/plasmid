@@ -3,7 +3,7 @@ module github.com/mdeous/plasmid
 go 1.19
 
 require (
-	github.com/crewjam/saml v0.4.8
+	github.com/crewjam/saml v0.4.10
 	github.com/crewjam/saml/samlidp v0.0.0-20220625143334-5e0ffd290abf
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8
 	github.com/spf13/cobra v1.5.0
