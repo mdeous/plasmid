@@ -9,6 +9,8 @@ on:
     paths:
       - Dockerfile
       - '**.go'
+      - 'go.mod'
+      - 'go.sum'
   workflow_dispatch:
 
 env:
