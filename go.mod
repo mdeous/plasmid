@@ -37,4 +37,6 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/crewjam/saml v0.0.0-00010101000000-000000000000 => github.com/crewjam/saml v0.4.8
+replace github.com/crewjam/saml v0.4.10 => github.com/mdeous/saml v0.4.11-0.20221204142257-0b961162e221
+
+replace github.com/crewjam/saml/samlidp v0.0.0-20220625143334-5e0ffd290abf => github.com/mdeous/saml/samlidp v0.0.0-20221204142257-0b961162e221
