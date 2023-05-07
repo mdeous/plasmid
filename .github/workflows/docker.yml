@@ -121,7 +121,7 @@ jobs:
             version="${GITHUB_REF##*/}"
           fi
           echo "Image version: ${version}"
-          echo "::set-output name=version::${version}"
+          echo "version=${version}" >> $GITHUB_STATE
 
       - name: Tag image
         run: docker tag ${IMAGE_NAME}:ci ${{ matrix.registry }}/${IMAGE_NAME}:${{ steps.get_version.outputs.version }}
