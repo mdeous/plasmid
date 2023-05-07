@@ -46,7 +46,7 @@ jobs:
             version="$(make version)"
           fi
           echo "Version: ${version}"
-          echo "::set-output name=version::${version}"
+          echo "version=${version}" >> $GITHUB_STATE
 
       - name: Publish release
         uses: marvinpinto/action-automatic-releases@v1.2.1
