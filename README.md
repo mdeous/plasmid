@@ -271,8 +271,6 @@ which are listed [here](https://github.com/crewjam/saml/blob/5e0ffd290abf0be7dfd
 * Does not support encrypted SAML requests
 * IdP initiated flow currently only works with existing session, but login form is broken 
   (waiting for [crewjam/saml#463](https://github.com/crewjam/saml/pull/463) to be merged)
-* `client sssion-get` and `client session-del` commands fail when session id contains a `/`
-  (waiting for [crewjam/saml#462](https://github.com/crewjam/saml/pull/462) to be merged) 
 
 ## License
 
