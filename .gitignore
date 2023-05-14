@@ -145,6 +145,5 @@ Temporary Items
 ### Project files
 plasmid
 plasmid.yaml
-key.pem
-cert.pem
+*.pem
 idp-metadata.xml
