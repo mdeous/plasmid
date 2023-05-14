@@ -97,25 +97,25 @@ var serveCmd = &cobra.Command{
 		}
 
 		// register user and service provider after the idp has started
-		if viper.GetString(config.SPMetadata) != "" {
-			go func() {
-				time.Sleep(StartupDelay)
-				// create plasmid client
-				c, err := client.New(viper.GetString(config.BaseUrl))
-				handleError(err)
-				// create new user
-				username := viper.GetString(config.UserUsername)
-				logr.Printf("registering new user '%s'", username)
-				password := viper.GetString(config.UserPassword)
-				err = c.UserAdd(&samlidp.User{
-					Name:              username,
-					PlaintextPassword: &password,
-					Groups:            viper.GetStringSlice(config.UserGroups),
-					Email:             viper.GetString(config.UserEmail),
-					Surname:           viper.GetString(config.UserLastName),
-					GivenName:         viper.GetString(config.UserFirstName),
-				})
-				handleError(err)
+		go func() {
+			time.Sleep(StartupDelay)
+			// create plasmid client
+			c, err := client.New(viper.GetString(config.BaseUrl))
+			handleError(err)
+			// create new user
+			username := viper.GetString(config.UserUsername)
+			logr.Printf("registering new user '%s'", username)
+			password := viper.GetString(config.UserPassword)
+			err = c.UserAdd(&samlidp.User{
+				Name:              username,
+				PlaintextPassword: &password,
+				Groups:            viper.GetStringSlice(config.UserGroups),
+				Email:             viper.GetString(config.UserEmail),
+				Surname:           viper.GetString(config.UserLastName),
+				GivenName:         viper.GetString(config.UserFirstName),
+			})
+			handleError(err)
+			if viper.GetString(config.SPMetadata) != "" {
 				// register service provider
 				spName := viper.GetString(config.SPName)
 				logr.Printf("registering service provider '%s'", spName)
@@ -124,9 +124,8 @@ var serveCmd = &cobra.Command{
 					viper.GetString(config.SPMetadata),
 				)
 				handleError(err)
-			}()
-		}
-
+			}
+		}()
 		err = idp.Serve()
 		handleError(err)
 	},
