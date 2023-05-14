@@ -51,7 +51,6 @@ func init() {
 		Name:        "key-file",
 		ShortHand:   "k",
 		Usage:       "private key output file",
-		AltDefault:  "key.pem",
 		ConfigField: config.CertKeyFile,
 	}
 	f.BindString()
@@ -60,7 +59,6 @@ func init() {
 		Name:        "cert-file",
 		ShortHand:   "c",
 		Usage:       "certificate output file",
-		AltDefault:  "cert.pem",
 		ConfigField: config.CertCertificateFile,
 	}
 	f.BindString()

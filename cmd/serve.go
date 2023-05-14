@@ -39,6 +39,8 @@ var serveCmd = &cobra.Command{
 			logr.Printf("private key file '%s' not found, generating one", keyFile)
 			privKey, err = utils.GeneratePrivateKey(viper.GetInt(config.CertKeySize))
 			handleError(err)
+			err = utils.WriteKeyToPem(privKey, keyFile)
+			handleError(err)
 		} else {
 			logr.Printf("loading private key: %s", keyFile)
 			privKey, err = utils.LoadPrivateKey(keyFile)
@@ -60,6 +62,8 @@ var serveCmd = &cobra.Command{
 				viper.GetString(config.CertCaPostcode),
 				viper.GetInt(config.CertCaExpYears),
 			)
+			handleError(err)
+			err = utils.WriteCertificateToPem(cert, certFile)
 			handleError(err)
 		} else {
 			logr.Printf("loading certificate: %s", certFile)
