@@ -8,6 +8,7 @@ on:
       - '**.go'
       - 'go.mod'
       - 'go.sum'
+      - '.github/workflows/publish.yml'
     tags:
       - 'v*'
   workflow_dispatch:
