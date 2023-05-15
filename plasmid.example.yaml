@@ -9,10 +9,11 @@ cert:
   ca_postcode: 75001
   ca_exp_years: 1
   key_size: 2048
-  # if certificate_file or key_file is set, they are
-  # used instead of generating them at startup
-  certificate_file: cert.pem
-  key_file: key.pem
+  # certificate_file and key_file determine where the cert and priv key
+  # are saved to / loaded from. Plasmid will attempt to load them, and
+  # will generate new ones if they can't be found.
+  certificate_file: plasmid-cert.pem
+  key_file: plasmid-key.pem
 user:
   username: admin
   password: Password123

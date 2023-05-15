@@ -18,7 +18,7 @@ import (
 )
 
 const StartupDelay = 2 * time.Second
-const IdpMetadataFile = "idp-metadata.xml"
+const IdpMetadataFile = "plasmid-metadata.xml"
 
 // serveCmd represents the serve command
 var serveCmd = &cobra.Command{
