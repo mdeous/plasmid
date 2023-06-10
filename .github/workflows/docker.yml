@@ -59,7 +59,7 @@ jobs:
         continue-on-error: true
 
       - name: Build image
-        uses: docker/build-push-action@v4.0.0
+        uses: docker/build-push-action@v4.1.0
         with:
           pull: true
           push: false
