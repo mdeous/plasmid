@@ -122,7 +122,7 @@ Optionally, you can mount a configuration file to the container's `/plasmid/plas
 path, or use environment variables.
 
 ```bash
-docker run mdeous/plasmid:latest serve
+docker run ghcr.io/mdeous/plasmid:latest serve
 ```
 
 ### Interacting With a Running Instance

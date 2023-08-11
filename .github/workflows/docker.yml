@@ -84,17 +84,6 @@ jobs:
       packages: write
       contents: read
 
-    strategy:
-      matrix:
-        registry:
-          - ghcr.io
-          - docker.io
-        include:
-          - registry: ghcr.io
-            secret: GITHUB_TOKEN
-          - registry: docker.io
-            secret: DOCKER_TOKEN
-
     steps:
       - name: Download image archive
         uses: actions/download-artifact@v3
@@ -105,12 +94,12 @@ jobs:
       - name: Import image
         run: docker load --input /tmp/image.tar
 
-      - name: Log into Docker registry
+      - name: Log into GHCR
         uses: docker/login-action@v2.2.0
         with:
-          registry: ${{ matrix.registry }}
+          registry: ghcr.io
           username: mdeous
-          password: ${{ secrets[matrix.secret] }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Get image version
         id: get_version
@@ -125,7 +114,7 @@ jobs:
           echo "version=${version}" >> $GITHUB_OUTPUT
 
       - name: Tag image
-        run: docker tag ${IMAGE_NAME}:ci ${{ matrix.registry }}/${IMAGE_NAME}:${{ steps.get_version.outputs.version }}
+        run: docker tag ${IMAGE_NAME}:ci ghcr.io/${IMAGE_NAME}:${{ steps.get_version.outputs.version }}
 
       - name: Push image to container registry
-        run: docker push ${{ matrix.registry }}/${IMAGE_NAME}:${{ steps.get_version.outputs.version }}
+        run: docker push ghcr.io/${IMAGE_NAME}:${{ steps.get_version.outputs.version }}
