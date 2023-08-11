@@ -114,7 +114,11 @@ jobs:
           echo "version=${version}" >> $GITHUB_OUTPUT
 
       - name: Tag image
-        run: docker tag ${IMAGE_NAME}:ci ghcr.io/${IMAGE_NAME}:${{ steps.get_version.outputs.version }}
+        run: docker tag ${IMAGE_NAME}:ci ghcr.io/${IMAGE_NAME}:${IMAGE_VERSION}
+        env:
+          IMAGE_VERSION: ${{ steps.get_version.outputs.version }}
 
       - name: Push image to container registry
-        run: docker push ghcr.io/${IMAGE_NAME}:${{ steps.get_version.outputs.version }}
+        run: docker push ghcr.io/${IMAGE_NAME}:${IMAGE_VERSION}
+        env:
+          IMAGE_VERSION: ${{ steps.get_version.outputs.version }}
