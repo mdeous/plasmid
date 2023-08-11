@@ -49,6 +49,13 @@ jobs:
           echo "Version: ${version}"
           echo "version=${version}" >> $GITHUB_OUTPUT
 
+      - name: Delete existing release
+        uses: larryjoelane/delete-release-action@v1.4
+        if: ${{ steps.get_version.outputs.version }} == 'nightly'
+        with:
+          release_name: nightly
+          token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Publish release
         uses: softprops/action-gh-release@v1
         with:
