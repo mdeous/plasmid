@@ -30,7 +30,6 @@ jobs:
       matrix:
         language:
             - go
-            - yaml
 
     steps:
     - name: Checkout repository
