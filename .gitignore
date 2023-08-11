@@ -147,3 +147,5 @@ plasmid
 plasmid.yaml
 *.pem
 idp-metadata.xml
+
+dist/
