@@ -9,7 +9,7 @@ ifeq ($(VERSION),)
 endif
 
 LDFLAGS := "-s -w -X github.com/mdeous/plasmid/cmd.version=$(VERSION)"
-GO_FLAGS := -ldflags $(LDFLAGS)
+GO_FLAGS := -v -ldflags $(LDFLAGS)
 
 IMAGE_VERSION ?= dev
 IMAGE_TAG := mdeous/plasmid:$(IMAGE_VERSION)
@@ -21,27 +21,27 @@ IMAGE_ARGS := --build-arg=VERSION=$(VERSION)
 all: $(BINARY_NAME) ## Default build action
 
 $(BINARY_NAME):
-	$(GO_BINARY) build $(GO_FLAGS) -o $(BINARY_NAME) .
+	@$(GO_BINARY) build $(GO_FLAGS) -o $(BINARY_NAME) .
 
 clean: ## Clean artifacts from previous build
-	@rm -f $(BINARY_NAME)
-	@rm -rf ./build
+	@rm -vf $(BINARY_NAME)
+	@rm -vrf ./build
 
 rebuild: clean all ## Delete existing artifacts and rebuild
 
 deps: ## Fetch project dependencies
-	$(GO_BINARY) get .
+	@$(GO_BINARY) get -v .
 
 update-deps: ## Update project dependencies
-	$(GO_BINARY) get -u .
-	$(GO_BINARY) mod tidy -v
+	@$(GO_BINARY) get -v -u .
+	@$(GO_BINARY) mod tidy -v
 
 cross-compile: ## Build for all supported platforms
-	gox -os="windows linux" -arch="386" -output="build/{{.Dir}}-$(VERSION)_{{.OS}}_{{.Arch}}" -ldflags=$(LDFLAGS)
-	gox -os="windows linux darwin" -arch="amd64" -output="build/{{.Dir}}-$(VERSION)_{{.OS}}_{{.Arch}}" -ldflags=$(LDFLAGS)
+	@gox -verbose -os="windows linux" -arch="386" -output="build/{{.Dir}}-$(VERSION)_{{.OS}}_{{.Arch}}" -ldflags=$(LDFLAGS)
+	@gox -verbose -os="windows linux darwin" -arch="amd64" -output="build/{{.Dir}}-$(VERSION)_{{.OS}}_{{.Arch}}" -ldflags=$(LDFLAGS)
 
 docker-image: ## Build the docker image
-	docker build $(IMAGE_ARGS) $(IMAGE_CACHE) -t $(IMAGE_TAG) .
+	@docker build $(IMAGE_ARGS) $(IMAGE_CACHE) -t $(IMAGE_TAG) .
 
 version: ## Display current program version
 	@echo $(VERSION)
