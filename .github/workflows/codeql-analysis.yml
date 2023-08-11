@@ -6,11 +6,13 @@ on:
       - main
     paths:
       - '**.go'
+      - '.github/**.yml'
   pull_request:
     branches:
       - main
     paths:
       - '**.go'
+      - '.github/**.yml'
   schedule:
     - cron: '0 0 * * 0'
 
@@ -26,7 +28,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: [ 'go' ]
+        language:
+            - go
+            - yaml
 
     steps:
     - name: Checkout repository
