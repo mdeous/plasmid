@@ -53,7 +53,7 @@ jobs:
         uses: larryjoelane/delete-release-action@v1.4
         if: ${{ steps.get_version.outputs.version }} == 'nightly'
         with:
-          release_name: nightly
+          release-name: nightly
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Publish release
