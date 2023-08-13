@@ -71,7 +71,7 @@ jobs:
       - name: Upload image archive
         uses: actions/upload-artifact@v3
         with:
-          name: pkgbuilder-image
+          name: plasmid-image
           path: /tmp/image.tar
 
   publish:
@@ -88,7 +88,7 @@ jobs:
       - name: Download image archive
         uses: actions/download-artifact@v3
         with:
-          name: pkgbuilder-image
+          name: plasmid-image
           path: /tmp/
 
       - name: Import image
