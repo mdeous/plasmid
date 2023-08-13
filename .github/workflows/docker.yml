@@ -70,6 +70,7 @@ jobs:
 
       - name: Upload image archive
         uses: actions/upload-artifact@v3
+        if: github.event_type != 'pull_request'
         with:
           name: plasmid-image
           path: /tmp/image.tar
