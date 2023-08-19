@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"github.com/spf13/viper"
 	"strings"
 )
@@ -62,7 +63,8 @@ func Init() {
 	viper.AddConfigPath(DefaultPath)
 	err := viper.ReadInConfig()
 	if err != nil {
-		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+		var configFileNotFoundError viper.ConfigFileNotFoundError
+		if !errors.As(err, &configFileNotFoundError) {
 			panic(err)
 		}
 	}
