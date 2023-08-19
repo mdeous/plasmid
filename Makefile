@@ -13,8 +13,8 @@ GO_FLAGS := -v -ldflags $(LDFLAGS)
 
 IMAGE_VERSION ?= dev
 IMAGE_TAG := mdeous/plasmid:$(IMAGE_VERSION)
-IMAGE_CACHE := --pull --cache-from=mdeous/plasmid:latest --cache-from mdeous/plasmid:dev
-IMAGE_ARGS := --build-arg=VERSION=$(VERSION)
+IMAGE_CACHE := --pull --cache-from=mdeous/plasmid:latest
+IMAGE_ARGS := --build-arg=VERSION=$(VERSION) --load
 
 .PHONY: all clean rebuild deps update-deps cross-compile docker-image version help
 
