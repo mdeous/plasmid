@@ -1,0 +1,41 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+    branches:
+      - main
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/release.yml'
+      - '.goreleaser.yaml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: stable
+
+      - name: Build
+        uses: goreleaser/goreleaser-action@v4
+        with:
+          args: build --snapshot
+
+      - name: Release
+        uses: goreleaser/goreleaser-action@v4
+        with:
+          args: release
