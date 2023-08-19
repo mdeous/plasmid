@@ -5,3 +5,5 @@ plasmid
 *.yaml
 *.xml
 LICENSE
+Dockerfile
+.dockerignore
