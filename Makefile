@@ -37,8 +37,7 @@ update-deps: ## Update project dependencies
 	@$(GO_BINARY) mod tidy -v
 
 cross-compile: ## Build for all supported platforms
-	@gox -verbose -os="windows linux" -arch="386" -output="build/{{.Dir}}-$(VERSION)_{{.OS}}_{{.Arch}}" -ldflags=$(LDFLAGS)
-	@gox -verbose -os="windows linux darwin" -arch="amd64" -output="build/{{.Dir}}-$(VERSION)_{{.OS}}_{{.Arch}}" -ldflags=$(LDFLAGS)
+	@goreleaser build --snapshot --clean
 
 docker-image: ## Build the docker image
 	@docker build $(IMAGE_ARGS) $(IMAGE_CACHE) -t $(IMAGE_TAG) .
