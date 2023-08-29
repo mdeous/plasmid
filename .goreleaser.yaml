@@ -28,6 +28,11 @@ builds:
     ldflags:
       - -s -w -X github.com/mdeous/{{ .ProjectName }}/cmd.version={{ .Version }}
 
+nightly:
+  tag_name: nightly
+  publish_release: true
+  keep_single_release: true
+
 archives:
   - format: tar.gz
     name_template: >-
