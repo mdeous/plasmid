@@ -16,7 +16,7 @@ on:
 
 jobs:
   build:
-    name: Build
+    name: Release
     runs-on: ubuntu-latest
     permissions:
       packages: write
@@ -30,12 +30,9 @@ jobs:
         with:
           go-version: stable
 
-      - name: Build
-        uses: goreleaser/goreleaser-action@v4
-        with:
-          args: build --snapshot
-
       - name: Release
         uses: goreleaser/goreleaser-action@v4
         with:
           args: release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
