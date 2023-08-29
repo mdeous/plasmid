@@ -102,7 +102,7 @@ jobs:
           - registry: ghcr.io
             secret: ${{ secrets.GITHUB_TOKEN }}
           - registry: docker.io
-            secret: ${{ secrets.DOCKERHUB_TOKEN }}
+            secret: ${{ secrets.DOCKER_TOKEN }}
 
     steps:
       - name: Download image archive
