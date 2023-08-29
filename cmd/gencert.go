@@ -17,6 +17,7 @@ var gencertCmd = &cobra.Command{
 		privKey, err := utils.GeneratePrivateKey(viper.GetInt(config.CertKeySize))
 		handleError(err)
 		err = utils.WriteKeyToPem(privKey, viper.GetString(config.CertKeyFile))
+		handleError(err)
 
 		// generate certificate
 		cert, err := utils.GenerateCertificate(

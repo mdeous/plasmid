@@ -21,6 +21,7 @@ var loginCmd = &cobra.Command{
 		relayState, err := cmd.Flags().GetString("relay-state")
 		handleError(err)
 		noBrowser, err := cmd.Flags().GetBool("no-browser")
+		handleError(err)
 
 		// create plasmid client
 		c, err := client.New(viper.GetString(config.BaseUrl))
