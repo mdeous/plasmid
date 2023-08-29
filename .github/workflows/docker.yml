@@ -100,9 +100,9 @@ jobs:
           - docker.io
         include:
           - registry: ghcr.io
-            secret: ${{ secrets.GITHUB_TOKEN }}
+            secret: GITHUB_TOKEN
           - registry: docker.io
-            secret: ${{ secrets.DOCKER_TOKEN }}
+            secret: DOCKER_TOKEN
 
     steps:
       - name: Download image archive
@@ -114,7 +114,7 @@ jobs:
       - name: Import image
         run: docker load --input /tmp/image.tar
 
-      - name: Log into GHCR
+      - name: Log into Docker registry
         uses: docker/login-action@v2.2.0
         with:
           registry: ${{ matrix.registry }}
