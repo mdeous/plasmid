@@ -101,8 +101,8 @@ jobs:
         include:
           - registry: ghcr.io
             secret: GITHUB_TOKEN
-          - registry: docker.io
-            secret: DOCKER_TOKEN
+#          - registry: docker.io
+#            secret: DOCKER_TOKEN
 
     steps:
       - name: Download image archive
