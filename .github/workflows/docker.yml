@@ -138,7 +138,15 @@ jobs:
         env:
           IMAGE_VERSION: ${{ steps.get_version.outputs.version }}
 
+      - name: Tag latest image
+        if: ${{ steps.get_version.outputs.version }} != 'latest'
+        run: docker tag ${IMAGE_NAME}:ci ${{ matrix.registry }}/${IMAGE_NAME}:latest
+
       - name: Push image to container registry
         run: docker push ${{ matrix.registry }}/${IMAGE_NAME}:${IMAGE_VERSION}
         env:
           IMAGE_VERSION: ${{ steps.get_version.outputs.version }}
+
+      - name: Push latest image to container registry
+        if: ${{ steps.get_version.outputs.version }} != 'latest'
+        run: docker push ${{ matrix.registry }}/${IMAGE_NAME}:latest
