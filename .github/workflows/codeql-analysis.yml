@@ -6,13 +6,11 @@ on:
       - main
     paths:
       - '**.go'
-      - '.github/**.yml'
   pull_request:
     branches:
       - main
     paths:
       - '**.go'
-      - '.github/**.yml'
   schedule:
     - cron: '0 0 * * 0'
 
