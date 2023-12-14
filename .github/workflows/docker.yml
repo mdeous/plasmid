@@ -106,7 +106,7 @@ jobs:
 
     steps:
       - name: Download image archive
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: plasmid-image
           path: /tmp/
