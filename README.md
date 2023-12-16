@@ -91,7 +91,7 @@ ngrok http 8000
 ./plasmid serve -u <ngrok-url>
 ```
 
-* Using the generated `plasmid-metadata.xml` file (or the `<base-url>/metadata` URL), register the plasmid 
+* Using the generated `idp-metadata.xml` file (or the `<base-url>/metadata` URL), register the plasmid 
   instance on the service provider you want to test
 * In [`SAMLRaider`](https://github.com/portswigger/saml-raider), import the certificate and private key
 * You can begin testing the service provider and login using `admin:Password123`
