@@ -1,16 +1,14 @@
 package config
 
 import (
-	"errors"
 	"github.com/spf13/viper"
+	"path"
 	"strings"
 )
 
 const (
 	EnvPrefix   = "IDP"
-	FileFormat  = "yaml"
 	DefaultFile = "plasmid.yaml"
-	DefaultPath = "."
 
 	Host                = "host"
 	Port                = "port"
@@ -56,19 +54,20 @@ var DefaultValues = map[string]interface{}{
 	UserGroups:          []string{"Administrators", "Users"},
 }
 
-func Init() {
-	// load from file if it exists
-	viper.SetConfigName(DefaultFile)
-	viper.SetConfigType(FileFormat)
-	viper.AddConfigPath(DefaultPath)
+func LoadFile(filePath string) error {
+	dirName, fileName := path.Split(filePath)
+	if dirName != "" {
+		viper.AddConfigPath(dirName)
+	}
+	viper.SetConfigFile(fileName)
 	err := viper.ReadInConfig()
 	if err != nil {
-		var configFileNotFoundError viper.ConfigFileNotFoundError
-		if !errors.As(err, &configFileNotFoundError) {
-			panic(err)
-		}
+		return err
 	}
+	return nil
+}
 
+func Init() {
 	// setup configuration via environment variables
 	viper.SetEnvPrefix(EnvPrefix)
 	viper.AutomaticEnv()

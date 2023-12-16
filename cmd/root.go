@@ -26,5 +26,12 @@ func Execute() {
 }
 
 func init() {
-	cobra.OnInitialize(config.Init)
+	rootCmd.PersistentFlags().StringP("config", "c", config.DefaultFile, "configuration file")
+	cobra.OnInitialize(func() {
+		config.Init()
+		cfgFile, _ := rootCmd.Flags().GetString("config")
+		if err := config.LoadFile(cfgFile); err != nil {
+			logr.Fatalf("failed to load configuration file '%s': %v", cfgFile, err)
+		}
+	})
 }
