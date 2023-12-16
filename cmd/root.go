@@ -30,8 +30,11 @@ func init() {
 	cobra.OnInitialize(func() {
 		config.Init()
 		cfgFile, _ := rootCmd.Flags().GetString("config")
-		if err := config.LoadFile(cfgFile); err != nil {
-			logr.Fatalf("failed to load configuration file '%s': %v", cfgFile, err)
+		_, statErr := os.Stat(cfgFile)
+		if !(cfgFile == config.DefaultFile && os.IsNotExist(statErr)) {
+			if err := config.LoadFile(cfgFile); err != nil {
+				logr.Fatalf("failed to load configuration file '%s': %v", cfgFile, err)
+			}
 		}
 	})
 }
