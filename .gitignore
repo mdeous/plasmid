@@ -147,6 +147,7 @@ plasmid
 plasmid.yaml
 *.pem
 *-metadata.xml
+*_metadata.xml
 *-config.yaml
 
 dist/
