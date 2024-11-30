@@ -11,6 +11,8 @@ require (
 	goji.io v2.0.2+incompatible
 )
 
+replace github.com/crewjam/saml => github.com/mdeous/crewjam-saml v0.0.0-20241130000204-32e011a8defb
+
 require (
 	github.com/beevik/etree v1.2.0 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
