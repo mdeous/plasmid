@@ -260,4 +260,4 @@ which are listed [here](https://github.com/crewjam/saml/blob/main/samlidp/samlid
 
 ## License
 
-This project is licensed under the MIT license. See the LICENSE file for more information.
+This project is licensed under the MIT license. See the [LICENSE](https://github.com/mdeous/plasmid/blob/main/LICENSE) file for more information.
