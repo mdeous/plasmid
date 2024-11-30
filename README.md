@@ -3,8 +3,8 @@
 [![Build](https://github.com/mdeous/plasmid/actions/workflows/build.yml/badge.svg)](https://github.com/mdeous/plasmid/actions/workflows/build.yml)
 [![Docker Image](https://github.com/mdeous/plasmid/actions/workflows/docker.yml/badge.svg)](https://github.com/mdeous/plasmid/actions/workflows/docker.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/mdeous/plasmid)](https://goreportcard.com/report/github.com/mdeous/plasmid)
-![GitHub release (latest by date)](https://img.shields.io/github/v/release/mdeous/plasmid)
-![License](https://img.shields.io/github/license/mdeous/plasmid)
+[![Latest Release](https://img.shields.io/github/v/release/mdeous/plasmid)](https://github.com/mdeous/plasmid/releases/latest)
+[![License](https://img.shields.io/github/license/mdeous/plasmid)](https://github.com/mdeous/plasmid/blob/main/LICENSE)
 
 
 Basic SAML identity provider for testing service providers.
