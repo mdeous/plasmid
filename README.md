@@ -256,8 +256,7 @@ which are listed [here](https://github.com/crewjam/saml/blob/main/samlidp/samlid
 
 * Does not support signed SAML requests
 * Does not support encrypted SAML requests
-* IdP initiated flow currently only works with existing session, but login form is broken 
-  (waiting for [crewjam/saml#463](https://github.com/crewjam/saml/pull/463) to be merged)
+* IdP initiated flow currently does not properly redirect to the SP after login
 
 ## License
 
