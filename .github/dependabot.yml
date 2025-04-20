@@ -5,10 +5,12 @@ updates:
     schedule:
       interval: "daily"
     groups:
-      go: {}
+      go:
+        applies-to: version-updates
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "daily"
     groups:
-      gh-actions: {}
+      gh-actions:
+        applies-to: version-updates
