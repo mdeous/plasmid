@@ -12,7 +12,8 @@ import (
 )
 
 type PlasmidClient struct {
-	BaseUrl *url.URL
+	BaseUrl   *url.URL
+	UserAgent string
 }
 
 func (p *PlasmidClient) request(method string, apiPath string, body io.Reader, expectedStatus int) (int, []byte, error) {
@@ -27,6 +28,9 @@ func (p *PlasmidClient) request(method string, apiPath string, body io.Reader, e
 	req, err := http.NewRequest(method, u.String(), body)
 	if err != nil {
 		return 0, nil, fmt.Errorf("unable to build %s request to %s: %v", method, apiPath, err)
+	}
+	if p.UserAgent != "" {
+		req.Header.Set("User-Agent", p.UserAgent)
 	}
 
 	// send request
@@ -93,7 +97,8 @@ func New(baseUrl string) (*PlasmidClient, error) {
 		return nil, fmt.Errorf("invalid url '%s': %v", baseUrl, err.Error())
 	}
 	p := &PlasmidClient{
-		BaseUrl: u,
+		BaseUrl:   u,
+		UserAgent: "plasmid",
 	}
 	return p, nil
 }
