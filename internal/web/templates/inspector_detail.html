@@ -1,5 +1,8 @@
 {{define "inspector_detail"}}
-<h3>{{.Direction}} - {{.Endpoint}}</h3>
+<div style="display: flex; justify-content: space-between; align-items: center;">
+    <h3 style="margin: 0;">{{.Direction}} - {{.Endpoint}}</h3>
+    <button class="outline" hx-get="/ui/inspector/close" hx-target="#exchange-detail" hx-swap="innerHTML">Close</button>
+</div>
 <table>
     <tr><th>Time</th><td>{{.Timestamp}}</td></tr>
     <tr><th>SP</th><td>{{.ServiceProvider}}</td></tr>

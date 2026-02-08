@@ -5,6 +5,7 @@ import (
 	"compress/flate"
 	"encoding/base64"
 	"encoding/xml"
+	"html"
 	"io"
 	"log/slog"
 	"net/http"
@@ -77,7 +78,7 @@ func captureInbound(inspector *Inspector, logger *slog.Logger, r *http.Request) 
 		Endpoint:        r.URL.Path,
 		RelayState:      r.FormValue("RelayState"),
 		RemoteAddr:      r.RemoteAddr,
-		RawXML:          rawXML,
+		RawXML:          formatXML(rawXML),
 		Signed:          signed,
 		ServiceProvider: sp,
 	}
@@ -90,7 +91,7 @@ func captureOutbound(inspector *Inspector, logger *slog.Logger, r *http.Request,
 		return
 	}
 
-	decoded, err := base64.StdEncoding.DecodeString(string(matches[1]))
+	decoded, err := base64.StdEncoding.DecodeString(html.UnescapeString(string(matches[1])))
 	if err != nil {
 		logger.Debug("failed to base64 decode SAMLResponse", "error", err)
 		return
@@ -138,11 +139,31 @@ func captureOutbound(inspector *Inspector, logger *slog.Logger, r *http.Request,
 		NameID:          nameID,
 		RelayState:      r.FormValue("RelayState"),
 		RemoteAddr:      r.RemoteAddr,
-		RawXML:          rawXML,
+		RawXML:          formatXML(rawXML),
 		Signed:          signed,
 		Attributes:      attrs,
 	}
 	inspector.Record(exchange)
+}
+
+func formatXML(raw string) string {
+	var buf bytes.Buffer
+	decoder := xml.NewDecoder(strings.NewReader(raw))
+	encoder := xml.NewEncoder(&buf)
+	encoder.Indent("", "  ")
+	for {
+		tok, err := decoder.Token()
+		if err != nil {
+			break
+		}
+		if err := encoder.EncodeToken(tok); err != nil {
+			return raw
+		}
+	}
+	if err := encoder.Flush(); err != nil {
+		return raw
+	}
+	return buf.String()
 }
 
 func decodeSAMLRequest(encoded string) (string, error) {

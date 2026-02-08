@@ -18,6 +18,7 @@ func (h *WebHandler) SetTamperConfig(tc *internalsml.TamperConfig) {
 func (h *WebHandler) RegisterInspectorRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /ui/inspector", h.handleInspector)
 	mux.HandleFunc("GET /ui/inspector/exchanges", h.handleInspectorExchanges)
+	mux.HandleFunc("GET /ui/inspector/close", h.handleInspectorClose)
 	mux.HandleFunc("GET /ui/inspector/{id}", h.handleInspectorDetail)
 	mux.HandleFunc("POST /ui/inspector/clear", h.handleInspectorClear)
 	mux.HandleFunc("GET /ui/tamper", h.handleTamper)
@@ -68,6 +69,10 @@ func (h *WebHandler) handleInspectorDetail(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	h.renderPartial(w, "inspector_detail", exchange)
+}
+
+func (h *WebHandler) handleInspectorClose(w http.ResponseWriter, r *http.Request) {
+	w.Write([]byte(`<p><em>Select an exchange above to view details.</em></p>`))
 }
 
 func (h *WebHandler) handleInspectorClear(w http.ResponseWriter, r *http.Request) {
