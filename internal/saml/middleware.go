@@ -27,7 +27,7 @@ func (rc *responseCapture) Write(b []byte) (int, error) {
 	return rc.ResponseWriter.Write(b)
 }
 
-func InterceptMiddleware(inspector *Inspector, logger *slog.Logger, next http.Handler) http.Handler {
+func InterceptMiddleware(inspector *Inspector, tamperConfig *TamperConfig, logger *slog.Logger, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		captureInbound(inspector, logger, r)
 
@@ -37,7 +37,7 @@ func InterceptMiddleware(inspector *Inspector, logger *slog.Logger, next http.Ha
 		}
 		next.ServeHTTP(capture, r)
 
-		captureOutbound(inspector, logger, r, capture.body.Bytes())
+		captureOutbound(inspector, tamperConfig, logger, r, capture.body.Bytes())
 	})
 }
 
@@ -85,7 +85,7 @@ func captureInbound(inspector *Inspector, logger *slog.Logger, r *http.Request) 
 	inspector.Record(exchange)
 }
 
-func captureOutbound(inspector *Inspector, logger *slog.Logger, r *http.Request, body []byte) {
+func captureOutbound(inspector *Inspector, tamperConfig *TamperConfig, logger *slog.Logger, r *http.Request, body []byte) {
 	matches := samlResponseRe.FindSubmatch(body)
 	if len(matches) < 2 {
 		return
@@ -100,6 +100,7 @@ func captureOutbound(inspector *Inspector, logger *slog.Logger, r *http.Request,
 	rawXML := string(decoded)
 	var response crewsaml.Response
 	signed := false
+	assertionSigned := false
 	nameID := ""
 	sp := ""
 	var attrs []Attribute
@@ -111,7 +112,8 @@ func captureOutbound(inspector *Inspector, logger *slog.Logger, r *http.Request,
 		sp = response.Destination
 		if response.EncryptedAssertion == nil && response.Assertion != nil {
 			assertion := response.Assertion
-			if assertion.Signature != nil {
+			assertionSigned = assertion.Signature != nil
+			if assertionSigned {
 				signed = true
 			}
 			if assertion.Subject != nil && assertion.Subject.NameID != nil {
@@ -132,6 +134,13 @@ func captureOutbound(inspector *Inspector, logger *slog.Logger, r *http.Request,
 		}
 	}
 
+	var mods []TamperModification
+	tampered := false
+	if tamperConfig != nil {
+		mods = tamperConfig.ConsumeModifications()
+		tampered = len(mods) > 0
+	}
+
 	exchange := SAMLExchange{
 		Direction:       "Response",
 		Endpoint:        r.URL.Path,
@@ -141,6 +150,9 @@ func captureOutbound(inspector *Inspector, logger *slog.Logger, r *http.Request,
 		RemoteAddr:      r.RemoteAddr,
 		RawXML:          formatXML(rawXML),
 		Signed:          signed,
+		AssertionSigned: assertionSigned,
+		Tampered:        tampered,
+		Modifications:   mods,
 		Attributes:      attrs,
 	}
 	inspector.Record(exchange)

@@ -78,7 +78,7 @@ func (p *Plasmid) Serve(ctx context.Context) error {
 
 	p.Mux.HandleFunc("POST /login", p.handleLogin)
 
-	idpHandler := internalsml.InterceptMiddleware(inspector, p.logger, p.IDP)
+	idpHandler := internalsml.InterceptMiddleware(inspector, tamperConfig, p.logger, p.IDP)
 	p.Mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/sso/") {
 			p.rewriteSSOPath(r)

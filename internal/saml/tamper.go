@@ -1,6 +1,7 @@
 package saml
 
 import (
+	"strings"
 	"sync"
 
 	crewsaml "github.com/crewjam/saml"
@@ -9,6 +10,12 @@ import (
 type TamperAttribute struct {
 	Name  string
 	Value string
+}
+
+type TamperModification struct {
+	Field    string
+	OldValue string
+	NewValue string
 }
 
 type TamperConfig struct {
@@ -20,6 +27,7 @@ type TamperConfig struct {
 	Issuer           string
 	Audience         string
 	InjectAttributes []TamperAttribute
+	lastMods         []TamperModification
 }
 
 func NewTamperConfig() *TamperConfig {
@@ -36,6 +44,14 @@ func (tc *TamperConfig) ShouldRemoveSignature() bool {
 	tc.mu.RLock()
 	defer tc.mu.RUnlock()
 	return tc.Enabled && tc.RemoveSignature
+}
+
+func (tc *TamperConfig) ConsumeModifications() []TamperModification {
+	tc.mu.Lock()
+	defer tc.mu.Unlock()
+	mods := tc.lastMods
+	tc.lastMods = nil
+	return mods
 }
 
 type TamperConfigSnapshot struct {
@@ -89,25 +105,31 @@ func (t TamperableAssertionMaker) MakeAssertion(req *crewsaml.IdpAuthnRequest, s
 		return nil
 	}
 
-	t.Config.mu.RLock()
-	defer t.Config.mu.RUnlock()
+	t.Config.mu.Lock()
+	defer t.Config.mu.Unlock()
 
 	assertion := req.Assertion
+	var mods []TamperModification
 
 	if t.Config.NameID != "" && assertion.Subject != nil && assertion.Subject.NameID != nil {
+		mods = append(mods, TamperModification{"NameID", assertion.Subject.NameID.Value, t.Config.NameID})
 		assertion.Subject.NameID.Value = t.Config.NameID
 	}
 
 	if t.Config.NameIDFormat != "" && assertion.Subject != nil && assertion.Subject.NameID != nil {
+		mods = append(mods, TamperModification{"NameID Format", assertion.Subject.NameID.Format, t.Config.NameIDFormat})
 		assertion.Subject.NameID.Format = t.Config.NameIDFormat
 	}
 
 	if t.Config.Issuer != "" {
+		mods = append(mods, TamperModification{"Issuer", assertion.Issuer.Value, t.Config.Issuer})
 		assertion.Issuer.Value = t.Config.Issuer
 	}
 
 	if t.Config.Audience != "" {
 		for i := range assertion.Conditions.AudienceRestrictions {
+			old := assertion.Conditions.AudienceRestrictions[i].Audience.Value
+			mods = append(mods, TamperModification{"Audience", old, t.Config.Audience})
 			assertion.Conditions.AudienceRestrictions[i].Audience.Value = t.Config.Audience
 		}
 	}
@@ -120,6 +142,15 @@ func (t TamperableAssertionMaker) MakeAssertion(req *crewsaml.IdpAuthnRequest, s
 		for i, existing := range assertion.AttributeStatements {
 			for j, a := range existing.Attributes {
 				if a.FriendlyName == attr.Name || a.Name == attr.Name {
+					var oldVals []string
+					for _, v := range a.Values {
+						oldVals = append(oldVals, v.Value)
+					}
+					old := ""
+					if len(oldVals) > 0 {
+						old = strings.Join(oldVals, ", ")
+					}
+					mods = append(mods, TamperModification{"Attribute: " + attr.Name, old, attr.Value})
 					assertion.AttributeStatements[i].Attributes[j].Values = []crewsaml.AttributeValue{
 						{Value: attr.Value},
 					}
@@ -135,6 +166,7 @@ func (t TamperableAssertionMaker) MakeAssertion(req *crewsaml.IdpAuthnRequest, s
 			if len(assertion.AttributeStatements) == 0 {
 				assertion.AttributeStatements = []crewsaml.AttributeStatement{{}}
 			}
+			mods = append(mods, TamperModification{"Attribute: " + attr.Name, "(added)", attr.Value})
 			assertion.AttributeStatements[0].Attributes = append(
 				assertion.AttributeStatements[0].Attributes,
 				crewsaml.Attribute{
@@ -145,6 +177,13 @@ func (t TamperableAssertionMaker) MakeAssertion(req *crewsaml.IdpAuthnRequest, s
 			)
 		}
 	}
+
+	if t.Config.RemoveSignature {
+		mods = append(mods, TamperModification{"Signature", "present", "removed"})
+		req.AssertionEl = req.Assertion.Element()
+	}
+
+	t.Config.lastMods = mods
 
 	return nil
 }

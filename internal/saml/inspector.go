@@ -20,6 +20,9 @@ type SAMLExchange struct {
 	NameID          string
 	RelayState      string
 	Signed          bool
+	AssertionSigned bool
+	Tampered        bool
+	Modifications   []TamperModification
 	Attributes      []Attribute
 	RawXML          string
 	RemoteAddr      string

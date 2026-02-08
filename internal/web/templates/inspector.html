@@ -14,6 +14,7 @@
                 <th>SP</th>
                 <th>NameID</th>
                 <th>Signed</th>
+                <th>Tampered</th>
                 <th>Actions</th>
             </tr>
         </thead>
@@ -26,6 +27,7 @@
                 <td>{{.ServiceProvider}}</td>
                 <td>{{.NameID}}</td>
                 <td>{{if .Signed}}<span class="badge badge-green">Yes</span>{{else}}<span class="badge badge-red">No</span>{{end}}</td>
+                <td>{{if .Tampered}}<span class="badge badge-red">Yes</span>{{end}}</td>
                 <td><button class="outline" hx-get="/ui/inspector/{{.ID}}" hx-target="#exchange-detail" hx-swap="innerHTML">View</button></td>
             </tr>
             {{end}}

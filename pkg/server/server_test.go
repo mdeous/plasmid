@@ -101,7 +101,7 @@ func newTestEnv(t *testing.T) *testEnv {
 	p.IDP.IDP.AssertionMaker = internalsml.TamperableAssertionMaker{Config: tamperConfig}
 
 	p.Mux.HandleFunc("POST /login", p.handleLogin)
-	idpHandler := internalsml.InterceptMiddleware(inspector, log, p.IDP)
+	idpHandler := internalsml.InterceptMiddleware(inspector, tamperConfig, log, p.IDP)
 	p.Mux.Handle("/", idpHandler)
 
 	return &testEnv{
