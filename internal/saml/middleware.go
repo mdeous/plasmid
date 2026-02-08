@@ -152,10 +152,14 @@ func captureOutbound(inspector *Inspector, tamperConfig *TamperConfig, logger *s
 					for _, v := range a.Values {
 						values = append(values, v.Value)
 					}
-					attrs = append(attrs, Attribute{
-						Name:   a.Name,
-						Values: values,
-					})
+					name := a.Name
+				if a.FriendlyName != "" {
+					name = a.FriendlyName
+				}
+				attrs = append(attrs, Attribute{
+					Name:   name,
+					Values: values,
+				})
 				}
 			}
 		}
