@@ -1,0 +1,18 @@
+{{define "title"}}Sessions{{end}}
+{{define "content"}}
+<h1>Active Sessions</h1>
+
+<table>
+    <thead>
+        <tr>
+            <th>Session ID</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody id="session-table-body" hx-get="/ui/sessions/list" hx-trigger="every 5s" hx-swap="innerHTML">
+        {{range .Sessions}}
+        {{template "session_row" .}}
+        {{end}}
+    </tbody>
+</table>
+{{end}}

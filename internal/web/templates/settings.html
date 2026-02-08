@@ -1,0 +1,35 @@
+{{define "title"}}Settings{{end}}
+{{define "content"}}
+<h1>Settings</h1>
+
+<section>
+    <h3>Identity Provider</h3>
+    <table>
+        <tr><th>Base URL</th><td><code>{{.BaseURL}}</code></td></tr>
+        <tr><th>Listen Address</th><td><code>{{.Host}}:{{.Port}}</code></td></tr>
+        <tr><th>Metadata URL</th><td><a href="/metadata"><code>{{.BaseURL}}/metadata</code></a></td></tr>
+    </table>
+</section>
+
+{{if .CertInfo}}
+<section>
+    <h3>Certificate</h3>
+    <table>
+        <tr><th>Subject</th><td>{{.CertInfo.Subject}}</td></tr>
+        <tr><th>Not Before</th><td>{{.CertInfo.NotBefore}}</td></tr>
+        <tr><th>Not After</th><td>{{.CertInfo.NotAfter}}</td></tr>
+        <tr><th>Serial</th><td><code>{{.CertInfo.SerialNumber}}</code></td></tr>
+        <tr><th>SHA-256</th><td><code>{{.CertInfo.Fingerprint}}</code></td></tr>
+    </table>
+</section>
+{{end}}
+
+<section>
+    <h3>Configuration</h3>
+    <table>
+        {{range .Config}}
+        <tr><th>{{.Key}}</th><td><code>{{.Value}}</code></td></tr>
+        {{end}}
+    </table>
+</section>
+{{end}}

@@ -1,6 +1,9 @@
 package cmd
 
 import (
+	"os"
+	"slices"
+
 	"github.com/mdeous/plasmid/pkg/client"
 	"github.com/mdeous/plasmid/pkg/config"
 	"github.com/spf13/cobra"
@@ -24,8 +27,9 @@ var userDelCmd = &cobra.Command{
 		// check if user exists
 		users, err := c.UserList()
 		handleError(err)
-		if !stringInArray(username, users) {
-			logr.Fatalf("user not found: %s", username)
+		if !slices.Contains(users, username) {
+			logr.Error("user not found", "username", username)
+			os.Exit(1)
 		}
 
 		// delete user

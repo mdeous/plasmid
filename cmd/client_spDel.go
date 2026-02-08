@@ -1,11 +1,13 @@
 package cmd
 
 import (
+	"os"
+	"slices"
+
 	"github.com/mdeous/plasmid/pkg/client"
 	"github.com/mdeous/plasmid/pkg/config"
-	"github.com/spf13/viper"
-
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 // spDelCmd represents the spGet command
@@ -25,8 +27,9 @@ var spDelCmd = &cobra.Command{
 		// check if sp exists
 		sps, err := c.ServiceList()
 		handleError(err)
-		if !stringInArray(sp, sps) {
-			logr.Fatalf("service provider not found: %s", sp)
+		if !slices.Contains(sps, sp) {
+			logr.Error("service provider not found", "name", sp)
+			os.Exit(1)
 		}
 
 		// delete service

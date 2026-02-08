@@ -2,6 +2,9 @@ package cmd
 
 import (
 	"fmt"
+	"os"
+	"slices"
+
 	"github.com/mdeous/plasmid/pkg/client"
 	"github.com/mdeous/plasmid/pkg/config"
 	"github.com/pkg/browser"
@@ -31,16 +34,9 @@ var loginCmd = &cobra.Command{
 		shortcuts, err := c.ShortcutList()
 		handleError(err)
 
-		// check if requested link exists
-		linkExists := false
-		for _, shortcut := range shortcuts {
-			if shortcut == link {
-				linkExists = true
-				break
-			}
-		}
-		if !linkExists {
-			logr.Fatalf("link not found: %s", link)
+		if !slices.Contains(shortcuts, link) {
+			logr.Error("link not found", "link", link)
+			os.Exit(1)
 		}
 
 		// build login link

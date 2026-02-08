@@ -1,0 +1,13 @@
+{{define "shortcut_row"}}
+<tr id="shortcut-{{.Name}}">
+    <td>{{.Name}}</td>
+    <td>
+        <code>{{.LoginURL}}</code>
+        <button class="copy-btn secondary outline" onclick="copyToClipboard('{{.LoginURL}}', this)">Copy</button>
+    </td>
+    <td>
+        <a href="{{.LoginURL}}" target="_blank" role="button" class="outline">Open</a>
+        <button class="secondary outline" hx-delete="/ui/shortcuts/{{.Name}}" hx-target="#shortcut-{{.Name}}" hx-swap="outerHTML swap:0.3s" hx-confirm="Delete shortcut {{.Name}}?">Delete</button>
+    </td>
+</tr>
+{{end}}

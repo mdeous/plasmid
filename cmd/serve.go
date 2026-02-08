@@ -1,57 +1,63 @@
 package cmd
 
 import (
+	"context"
 	"crypto/rsa"
 	"crypto/x509"
+	"encoding/xml"
 	"errors"
+	"fmt"
+	"net/url"
+	"os"
+	"os/signal"
+	"syscall"
+
+	"github.com/crewjam/saml"
 	"github.com/crewjam/saml/samlidp"
-	"github.com/mdeous/plasmid/pkg/client"
 	"github.com/mdeous/plasmid/pkg/config"
 	"github.com/mdeous/plasmid/pkg/server"
 	"github.com/mdeous/plasmid/pkg/utils"
-	"github.com/spf13/viper"
-	"net/url"
-	"os"
-	"time"
-
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+	"golang.org/x/crypto/bcrypt"
 )
 
-const StartupDelay = 2 * time.Second
 const IdpMetadataFile = "idp-metadata.xml"
 
-// serveCmd represents the serve command
 var serveCmd = &cobra.Command{
 	Use:     "serve",
 	Aliases: []string{"srv", "s"},
 	Short:   "Start SAML IdP server",
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		var (
 			privKey *rsa.PrivateKey
 			cert    *x509.Certificate
 			err     error
 		)
 
-		// load or generate private key
 		keyFile := viper.GetString(config.CertKeyFile)
 		_, err = os.Stat(keyFile)
 		if errors.Is(err, os.ErrNotExist) {
-			logr.Printf("private key file '%s' not found, generating one", keyFile)
+			logr.Info("generating private key", "file", keyFile)
 			privKey, err = utils.GeneratePrivateKey(viper.GetInt(config.CertKeySize))
-			handleError(err)
-			err = utils.WriteKeyToPem(privKey, keyFile)
-			handleError(err)
+			if err != nil {
+				return err
+			}
+			if err = utils.WriteKeyToPem(privKey, keyFile); err != nil {
+				return err
+			}
 		} else {
-			logr.Printf("loading private key: %s", keyFile)
+			logr.Info("loading private key", "file", keyFile)
 			privKey, err = utils.LoadPrivateKey(keyFile)
-			handleError(err)
+			if err != nil {
+				return err
+			}
 		}
 
-		// load or generate certificate
 		certFile := viper.GetString(config.CertCertificateFile)
 		_, err = os.Stat(certFile)
 		if errors.Is(err, os.ErrNotExist) {
-			logr.Printf("certificate file '%s' not found, generating one", certFile)
+			logr.Info("generating certificate", "file", certFile)
 			cert, err = utils.GenerateCertificate(
 				privKey,
 				viper.GetString(config.CertCaOrg),
@@ -62,20 +68,65 @@ var serveCmd = &cobra.Command{
 				viper.GetString(config.CertCaPostcode),
 				viper.GetInt(config.CertCaExpYears),
 			)
-			handleError(err)
-			err = utils.WriteCertificateToPem(cert, certFile)
-			handleError(err)
+			if err != nil {
+				return err
+			}
+			if err = utils.WriteCertificateToPem(cert, certFile); err != nil {
+				return err
+			}
 		} else {
-			logr.Printf("loading certificate: %s", certFile)
+			logr.Info("loading certificate", "file", certFile)
 			cert, err = utils.LoadCertificate(certFile)
-			handleError(err)
+			if err != nil {
+				return err
+			}
 		}
 
-		// prepare idp server
-		logr.Println("setting up identity provider server")
+		// pre-populate store with default user and optional SP
+		store := &samlidp.MemoryStore{}
+
+		username := viper.GetString(config.UserUsername)
+		logr.Info("registering default user", "username", username)
+		password := viper.GetString(config.UserPassword)
+		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+		if err != nil {
+			return fmt.Errorf("failed to hash password: %v", err)
+		}
+		user := samlidp.User{
+			Name:              username,
+			PlaintextPassword: &password,
+			HashedPassword:    hashedPassword,
+			Groups:            viper.GetStringSlice(config.UserGroups),
+			Email:             viper.GetString(config.UserEmail),
+			Surname:           viper.GetString(config.UserLastName),
+			GivenName:         viper.GetString(config.UserFirstName),
+		}
+		if err = store.Put("/users/"+username, &user); err != nil {
+			return err
+		}
+
+		if metadataSource := viper.GetString(config.SPMetadata); metadataSource != "" {
+			spName := viper.GetString(config.SPName)
+			logr.Info("registering service provider", "name", spName)
+			metadataBytes, fetchErr := utils.FetchSPMetadata(metadataSource)
+			if fetchErr != nil {
+				return fetchErr
+			}
+			var metadata saml.EntityDescriptor
+			if err = xml.Unmarshal(metadataBytes, &metadata); err != nil {
+				return fmt.Errorf("unable to parse SP metadata: %v", err)
+			}
+			service := samlidp.Service{Name: spName, Metadata: metadata}
+			if err = store.Put("/services/"+spName, &service); err != nil {
+				return err
+			}
+		}
+
+		// create server
+		logr.Info("setting up identity provider")
 		baseUrl, err := url.Parse(viper.GetString(config.BaseUrl))
 		if err != nil {
-			logr.Fatalf("invalid base URL '%s': %v", baseUrl, err)
+			return err
 		}
 		idp, err := server.New(
 			viper.GetString(config.Host),
@@ -83,51 +134,28 @@ var serveCmd = &cobra.Command{
 			baseUrl,
 			privKey,
 			cert,
+			store,
+			logr,
 		)
-		handleError(err)
-
-		// save idp metadata to disk
-		meta, err := idp.Metadata()
-		handleError(err)
-		err = os.WriteFile(IdpMetadataFile, meta, 0644)
 		if err != nil {
-			logr.Fatalf("failed to write identity provider metadata file: %v", err)
-		} else {
-			logr.Println("identity provider metadata saved to", IdpMetadataFile)
+			return err
 		}
 
-		// register user and service provider after the idp has started
-		go func() {
-			time.Sleep(StartupDelay)
-			// create plasmid client
-			c, err := client.New(viper.GetString(config.BaseUrl))
-			handleError(err)
-			// create new user
-			username := viper.GetString(config.UserUsername)
-			logr.Printf("registering new user '%s'", username)
-			password := viper.GetString(config.UserPassword)
-			err = c.UserAdd(&samlidp.User{
-				Name:              username,
-				PlaintextPassword: &password,
-				Groups:            viper.GetStringSlice(config.UserGroups),
-				Email:             viper.GetString(config.UserEmail),
-				Surname:           viper.GetString(config.UserLastName),
-				GivenName:         viper.GetString(config.UserFirstName),
-			})
-			handleError(err)
-			if viper.GetString(config.SPMetadata) != "" {
-				// register service provider
-				spName := viper.GetString(config.SPName)
-				logr.Printf("registering service provider '%s'", spName)
-				err = c.ServiceAdd(
-					spName,
-					viper.GetString(config.SPMetadata),
-				)
-				handleError(err)
-			}
-		}()
-		err = idp.Serve()
-		handleError(err)
+		// save metadata
+		meta, err := idp.Metadata()
+		if err != nil {
+			return err
+		}
+		if err = os.WriteFile(IdpMetadataFile, meta, 0644); err != nil {
+			return err
+		}
+		logr.Info("metadata saved", "file", IdpMetadataFile)
+
+		// start server with graceful shutdown
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+
+		return idp.Serve(ctx)
 	},
 }
 

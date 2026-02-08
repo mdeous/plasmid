@@ -1,0 +1,56 @@
+{{define "title"}}Tamper Configuration{{end}}
+{{define "content"}}
+<h1>SAML Tampering</h1>
+<p>Configure modifications to SAML assertions for security testing.</p>
+
+<form method="POST" action="/ui/tamper">
+    <fieldset>
+        <label>
+            <input type="checkbox" name="enabled" {{if .Config.Enabled}}checked{{end}}>
+            Enable Tampering
+        </label>
+        <label>
+            <input type="checkbox" name="remove_signature" {{if .Config.RemoveSignature}}checked{{end}}>
+            Remove Signature (send unsigned assertions)
+        </label>
+    </fieldset>
+
+    <fieldset>
+        <legend>Override Values</legend>
+        <label>NameID Override
+            <input type="text" name="name_id" value="{{.Config.NameID}}" placeholder="Leave empty to keep original">
+        </label>
+        <label>NameID Format
+            <select name="name_id_format">
+                <option value="" {{if eq .Config.NameIDFormat ""}}selected{{end}}>-- Keep Original --</option>
+                <option value="urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress" {{if eq .Config.NameIDFormat "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"}}selected{{end}}>Email</option>
+                <option value="urn:oasis:names:tc:SAML:2.0:nameid-format:persistent" {{if eq .Config.NameIDFormat "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent"}}selected{{end}}>Persistent</option>
+                <option value="urn:oasis:names:tc:SAML:2.0:nameid-format:transient" {{if eq .Config.NameIDFormat "urn:oasis:names:tc:SAML:2.0:nameid-format:transient"}}selected{{end}}>Transient</option>
+                <option value="urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified" {{if eq .Config.NameIDFormat "urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified"}}selected{{end}}>Unspecified</option>
+            </select>
+        </label>
+        <label>Issuer Override
+            <input type="text" name="issuer" value="{{.Config.Issuer}}" placeholder="Leave empty to keep original">
+        </label>
+        <label>Audience Override
+            <input type="text" name="audience" value="{{.Config.Audience}}" placeholder="Leave empty to keep original">
+        </label>
+    </fieldset>
+
+    <fieldset>
+        <legend>Inject Attributes</legend>
+        <div id="inject-attrs">
+            {{range .Config.InjectAttributes}}
+            <div class="attr-row">
+                <input type="text" name="attr_name" value="{{.Name}}" placeholder="Attribute Name">
+                <input type="text" name="attr_value" value="{{.Value}}" placeholder="Value">
+                <button type="button" class="secondary outline" onclick="this.parentElement.remove()">Remove</button>
+            </div>
+            {{end}}
+        </div>
+        <button type="button" class="secondary outline" onclick="addAttributeRow('inject-attrs')">+ Add Attribute</button>
+    </fieldset>
+
+    <button type="submit">Save Configuration</button>
+</form>
+{{end}}

@@ -1,0 +1,12 @@
+{{define "user_row"}}
+<tr id="user-{{.Name}}">
+    <td>{{.Name}}</td>
+    <td><code>{{.Password}}</code></td>
+    <td>{{.Email}}</td>
+    <td>{{.GivenName}} {{.Surname}}</td>
+    <td>{{range $i, $g := .Groups}}{{if $i}}, {{end}}{{$g}}{{end}}</td>
+    <td>
+        <button class="secondary outline" hx-delete="/ui/users/{{.Name}}" hx-target="#user-{{.Name}}" hx-swap="outerHTML swap:0.3s" hx-confirm="Delete user {{.Name}}?">Delete</button>
+    </td>
+</tr>
+{{end}}

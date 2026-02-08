@@ -1,0 +1,34 @@
+{{define "title"}}Dashboard{{end}}
+{{define "content"}}
+<h1>Dashboard</h1>
+
+<div class="stats-grid" hx-get="/ui/api/stats" hx-trigger="every 10s" hx-swap="innerHTML">
+    <article class="stat-card">
+        <h2>{{.UserCount}}</h2>
+        <small>Users</small>
+    </article>
+    <article class="stat-card">
+        <h2>{{.ServiceCount}}</h2>
+        <small>Service Providers</small>
+    </article>
+    <article class="stat-card">
+        <h2>{{.SessionCount}}</h2>
+        <small>Active Sessions</small>
+    </article>
+    <article class="stat-card">
+        <h2>{{.ShortcutCount}}</h2>
+        <small>Login Shortcuts</small>
+    </article>
+</div>
+
+<section>
+    <h3>IdP Metadata</h3>
+    <div class="metadata-actions">
+        <input type="text" value="{{.BaseURL}}/metadata" readonly id="metadata-url">
+        <button class="outline" onclick="copyToClipboard(document.getElementById('metadata-url').value, this)">Copy URL</button>
+        <button class="outline" onclick="copyToClipboard(document.getElementById('metadata-xml').value, this)">Copy XML</button>
+        <a href="/metadata" role="button" class="secondary outline">Download XML</a>
+    </div>
+    <textarea id="metadata-xml" hidden>{{.MetadataXML}}</textarea>
+</section>
+{{end}}

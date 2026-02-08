@@ -1,6 +1,9 @@
 package cmd
 
 import (
+	"os"
+	"slices"
+
 	"github.com/mdeous/plasmid/pkg/client"
 	"github.com/mdeous/plasmid/pkg/config"
 	"github.com/spf13/cobra"
@@ -24,8 +27,9 @@ var loginDelCmd = &cobra.Command{
 		// check if shortcut exists
 		links, err := c.ShortcutList()
 		handleError(err)
-		if !stringInArray(name, links) {
-			logr.Fatalf("link not found: %s", name)
+		if !slices.Contains(links, name) {
+			logr.Error("link not found", "name", name)
+			os.Exit(1)
 		}
 
 		// delete shortcut

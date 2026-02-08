@@ -1,0 +1,30 @@
+{{define "title"}}Login Shortcuts{{end}}
+{{define "content"}}
+<h1>Login Shortcuts</h1>
+
+<details>
+    <summary role="button" class="secondary">Add Shortcut</summary>
+    <form hx-post="/ui/shortcuts" hx-target="#shortcut-table-body" hx-swap="beforeend" hx-on::after-request="if(event.detail.successful) this.reset()">
+        <div class="grid">
+            <label>Name <input type="text" name="name" required></label>
+            <label>SP Entity ID <input type="text" name="entity_id" required></label>
+        </div>
+        <button type="submit">Create Shortcut</button>
+    </form>
+</details>
+
+<table>
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Login URL</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody id="shortcut-table-body">
+        {{range .Shortcuts}}
+        {{template "shortcut_row" .}}
+        {{end}}
+    </tbody>
+</table>
+{{end}}

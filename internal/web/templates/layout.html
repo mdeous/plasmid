@@ -1,0 +1,32 @@
+{{define "layout"}}<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{block "title" .}}Plasmid{{end}} - Plasmid IdP</title>
+    <link rel="stylesheet" href="/ui/static/pico.min.css">
+    <link rel="stylesheet" href="/ui/static/app.css">
+    <script src="/ui/static/htmx.min.js"></script>
+    <script src="/ui/static/app.js"></script>
+</head>
+<body>
+    <nav class="container-fluid">
+        <ul>
+            <li><strong>Plasmid</strong></li>
+        </ul>
+        <ul>
+            <li><a href="/ui/" {{if eq .Active "dashboard"}}aria-current="page"{{end}}>Dashboard</a></li>
+            <li><a href="/ui/users" {{if eq .Active "users"}}aria-current="page"{{end}}>Users</a></li>
+            <li><a href="/ui/services" {{if eq .Active "services"}}aria-current="page"{{end}}>Services</a></li>
+            <li><a href="/ui/sessions" {{if eq .Active "sessions"}}aria-current="page"{{end}}>Sessions</a></li>
+            <li><a href="/ui/shortcuts" {{if eq .Active "shortcuts"}}aria-current="page"{{end}}>Shortcuts</a></li>
+            <li><a href="/ui/inspector" {{if eq .Active "inspector"}}aria-current="page"{{end}}>Inspector</a></li>
+            <li><a href="/ui/tamper" {{if eq .Active "tamper"}}aria-current="page"{{end}}>Tamper</a></li>
+            <li><a href="/ui/settings" {{if eq .Active "settings"}}aria-current="page"{{end}}>Settings</a></li>
+        </ul>
+    </nav>
+    <main class="container">
+        {{block "content" .}}{{end}}
+    </main>
+</body>
+</html>{{end}}

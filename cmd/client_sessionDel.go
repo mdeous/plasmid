@@ -1,11 +1,13 @@
 package cmd
 
 import (
+	"os"
+	"slices"
+
 	"github.com/mdeous/plasmid/pkg/client"
 	"github.com/mdeous/plasmid/pkg/config"
-	"github.com/spf13/viper"
-
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 // sessionDelCmd represents the sessionDel command
@@ -25,8 +27,9 @@ var sessionDelCmd = &cobra.Command{
 		// check if session exists
 		sessions, err := c.SessionList()
 		handleError(err)
-		if !stringInArray(sessionId, sessions) {
-			logr.Fatalf("session not found: %s", sessionId)
+		if !slices.Contains(sessions, sessionId) {
+			logr.Error("session not found", "session", sessionId)
+			os.Exit(1)
 		}
 
 		// delete session

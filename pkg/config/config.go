@@ -1,9 +1,9 @@
 package config
 
 import (
-	"github.com/spf13/viper"
-	"path"
 	"strings"
+
+	"github.com/spf13/viper"
 )
 
 const (
@@ -33,7 +33,7 @@ const (
 	SPMetadata          = "sp.metadata"
 )
 
-var DefaultValues = map[string]interface{}{
+var DefaultValues = map[string]any{
 	Host:                "127.0.0.1",
 	Port:                8000,
 	BaseUrl:             "http://127.0.0.1:8000",
@@ -55,16 +55,8 @@ var DefaultValues = map[string]interface{}{
 }
 
 func LoadFile(filePath string) error {
-	dirName, fileName := path.Split(filePath)
-	if dirName != "" {
-		viper.AddConfigPath(dirName)
-	}
-	viper.SetConfigFile(fileName)
-	err := viper.ReadInConfig()
-	if err != nil {
-		return err
-	}
-	return nil
+	viper.SetConfigFile(filePath)
+	return viper.ReadInConfig()
 }
 
 func Init() {

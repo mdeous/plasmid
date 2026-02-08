@@ -1,0 +1,33 @@
+{{define "title"}}Service Providers{{end}}
+{{define "content"}}
+<h1>Service Providers</h1>
+
+<details>
+    <summary role="button" class="secondary">Add Service Provider</summary>
+    <form hx-post="/ui/services" hx-target="#service-table-body" hx-swap="beforeend" hx-on::after-request="if(event.detail.successful) this.reset()">
+        <label>Name <input type="text" name="name" required></label>
+        <label>Metadata Source
+            <input type="text" name="metadata" placeholder="URL or paste XML below" required>
+        </label>
+        <label>Or paste metadata XML
+            <textarea name="metadata_xml" rows="6" placeholder="Paste SP metadata XML here (optional, overrides URL above)"></textarea>
+        </label>
+        <button type="submit">Register SP</button>
+    </form>
+</details>
+
+<table>
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Entity ID</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody id="service-table-body">
+        {{range .Services}}
+        {{template "service_row" .}}
+        {{end}}
+    </tbody>
+</table>
+{{end}}

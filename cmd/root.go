@@ -1,23 +1,20 @@
 package cmd
 
 import (
-	"github.com/crewjam/saml/logger"
-	"github.com/mdeous/plasmid/pkg/config"
+	"log/slog"
 	"os"
 
+	"github.com/mdeous/plasmid/pkg/config"
 	"github.com/spf13/cobra"
 )
 
-var logr = logger.DefaultLogger
+var logr = slog.Default()
 
-// rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "plasmid",
 	Short: "SAML identity provider",
 }
 
-// Execute adds all child commands to the root command and sets flags appropriately.
-// This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
 	err := rootCmd.Execute()
 	if err != nil {
@@ -33,7 +30,8 @@ func init() {
 		_, statErr := os.Stat(cfgFile)
 		if !(cfgFile == config.DefaultFile && os.IsNotExist(statErr)) {
 			if err := config.LoadFile(cfgFile); err != nil {
-				logr.Fatalf("failed to load configuration file '%s': %v", cfgFile, err)
+				logr.Error("failed to load configuration file", "file", cfgFile, "error", err)
+				os.Exit(1)
 			}
 		}
 	})

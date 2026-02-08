@@ -1,0 +1,39 @@
+{{define "title"}}Users{{end}}
+{{define "content"}}
+<h1>Users</h1>
+
+<details>
+    <summary role="button" class="secondary">Add User</summary>
+    <form hx-post="/ui/users" hx-target="#user-table-body" hx-swap="beforeend" hx-on::after-request="if(event.detail.successful) this.reset()">
+        <div class="grid">
+            <label>Username <input type="text" name="username" required></label>
+            <label>Password <input type="password" name="password" required></label>
+            <label>Email <input type="email" name="email" required></label>
+        </div>
+        <div class="grid">
+            <label>First Name <input type="text" name="given_name"></label>
+            <label>Last Name <input type="text" name="surname"></label>
+            <label>Groups <input type="text" name="groups" placeholder="comma-separated"></label>
+        </div>
+        <button type="submit">Create User</button>
+    </form>
+</details>
+
+<table>
+    <thead>
+        <tr>
+            <th>Username</th>
+            <th>Password</th>
+            <th>Email</th>
+            <th>Name</th>
+            <th>Groups</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody id="user-table-body">
+        {{range .Users}}
+        {{template "user_row" .}}
+        {{end}}
+    </tbody>
+</table>
+{{end}}

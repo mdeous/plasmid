@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"runtime"
 
 	"github.com/spf13/cobra"
@@ -17,7 +18,8 @@ var versionCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		verbose, err := cmd.Flags().GetBool("verbose")
 		if err != nil {
-			logr.Fatalf(err.Error())
+			logr.Error("failed to get verbose flag", "error", err)
+			os.Exit(1)
 		}
 		versionInfo := ""
 		if verbose {

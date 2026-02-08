@@ -12,8 +12,9 @@ import (
 )
 
 type PlasmidClient struct {
-	BaseUrl   *url.URL
-	UserAgent string
+	BaseUrl    *url.URL
+	UserAgent  string
+	httpClient *http.Client
 }
 
 func (p *PlasmidClient) request(method string, apiPath string, body io.Reader, expectedStatus int) (int, []byte, error) {
@@ -34,8 +35,7 @@ func (p *PlasmidClient) request(method string, apiPath string, body io.Reader, e
 	}
 
 	// send request
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := p.httpClient.Do(req)
 	if err != nil {
 		return 0, nil, fmt.Errorf("error while sending %s request to %s: %v", method, apiPath, err)
 	}
@@ -56,7 +56,7 @@ func (p *PlasmidClient) request(method string, apiPath string, body io.Reader, e
 	return resp.StatusCode, data, nil
 }
 
-func (p *PlasmidClient) resourceAdd(name string, resId string, resource interface{}) error {
+func (p *PlasmidClient) resourceAdd(name string, resId string, resource any) error {
 	// serialize resource
 	data, err := json.Marshal(resource)
 	if err != nil {
@@ -76,7 +76,7 @@ func (p *PlasmidClient) resourceAdd(name string, resId string, resource interfac
 	return nil
 }
 
-func (p *PlasmidClient) resourceIds(name string, listResult interface{}) error {
+func (p *PlasmidClient) resourceIds(name string, listResult any) error {
 	// get list of resource ids
 	_, resp, err := p.request(http.MethodGet, "/"+name+"/", nil, http.StatusOK)
 	if err != nil {
@@ -97,8 +97,9 @@ func New(baseUrl string) (*PlasmidClient, error) {
 		return nil, fmt.Errorf("invalid url '%s': %v", baseUrl, err.Error())
 	}
 	p := &PlasmidClient{
-		BaseUrl:   u,
-		UserAgent: "plasmid",
+		BaseUrl:    u,
+		UserAgent:  "plasmid",
+		httpClient: &http.Client{},
 	}
 	return p, nil
 }

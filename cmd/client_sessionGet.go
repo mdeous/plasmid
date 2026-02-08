@@ -3,11 +3,13 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"slices"
+
 	"github.com/mdeous/plasmid/pkg/client"
 	"github.com/mdeous/plasmid/pkg/config"
-	"github.com/spf13/viper"
-
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 // sessionGetCmd represents the sessionGet command
@@ -27,8 +29,9 @@ var sessionGetCmd = &cobra.Command{
 		// check if session exists
 		sessions, err := c.SessionList()
 		handleError(err)
-		if !stringInArray(sessionId, sessions) {
-			logr.Fatalf("session not found: %s", sessionId)
+		if !slices.Contains(sessions, sessionId) {
+			logr.Error("session not found", "session", sessionId)
+			os.Exit(1)
 		}
 
 		// get session info
@@ -37,7 +40,8 @@ var sessionGetCmd = &cobra.Command{
 		handleError(err)
 		data, err := json.MarshalIndent(session, "", "  ")
 		if err != nil {
-			logr.Fatalf("unable to serialize session '%s': %v", sessionId, err)
+			logr.Error("unable to serialize session", "session", sessionId, "error", err)
+			os.Exit(1)
 		}
 		fmt.Println(string(data))
 	},

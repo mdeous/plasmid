@@ -1,0 +1,24 @@
+{{define "inspector_detail"}}
+<h3>{{.Direction}} - {{.Endpoint}}</h3>
+<table>
+    <tr><th>Time</th><td>{{.Timestamp}}</td></tr>
+    <tr><th>SP</th><td>{{.ServiceProvider}}</td></tr>
+    <tr><th>NameID</th><td>{{.NameID}}</td></tr>
+    <tr><th>Relay State</th><td>{{.RelayState}}</td></tr>
+    <tr><th>Remote</th><td>{{.RemoteAddr}}</td></tr>
+    <tr><th>Signed</th><td>{{if .Signed}}Yes{{else}}No{{end}}</td></tr>
+</table>
+{{if .Attributes}}
+<h4>Attributes</h4>
+<table>
+    <thead><tr><th>Name</th><th>Values</th></tr></thead>
+    <tbody>
+    {{range .Attributes}}
+    <tr><td>{{.Name}}</td><td>{{range $i, $v := .Values}}{{if $i}}, {{end}}{{$v}}{{end}}</td></tr>
+    {{end}}
+    </tbody>
+</table>
+{{end}}
+<h4>Raw XML</h4>
+<pre class="xml-display">{{.RawXML}}</pre>
+{{end}}

@@ -1,0 +1,43 @@
+{{define "title"}}SAML Inspector{{end}}
+{{define "content"}}
+<h1>SAML Inspector</h1>
+<p>SAML request/response inspection will appear here once configured.</p>
+
+<div hx-get="/ui/inspector/exchanges" hx-trigger="every 2s" hx-swap="innerHTML">
+    {{if .Exchanges}}
+    <table>
+        <thead>
+            <tr>
+                <th>Time</th>
+                <th>Direction</th>
+                <th>Endpoint</th>
+                <th>SP</th>
+                <th>NameID</th>
+                <th>Signed</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range .Exchanges}}
+            <tr>
+                <td>{{.Timestamp}}</td>
+                <td>{{.Direction}}</td>
+                <td><code>{{.Endpoint}}</code></td>
+                <td>{{.ServiceProvider}}</td>
+                <td>{{.NameID}}</td>
+                <td>{{if .Signed}}<span class="badge badge-green">Yes</span>{{else}}<span class="badge badge-red">No</span>{{end}}</td>
+                <td><button class="outline" hx-get="/ui/inspector/{{.ID}}" hx-target="#exchange-detail" hx-swap="innerHTML">View</button></td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+    {{else}}
+    <p>No SAML exchanges captured yet. Trigger a SAML flow to see traffic here.</p>
+    {{end}}
+</div>
+
+<hr>
+<div id="exchange-detail">
+    <p><em>Select an exchange above to view details.</em></p>
+</div>
+{{end}}

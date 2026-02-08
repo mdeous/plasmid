@@ -1,0 +1,8 @@
+{{define "session_row"}}
+<tr id="session-{{.ID}}">
+    <td><code>{{.ID}}</code></td>
+    <td>
+        <button class="secondary outline" hx-delete="/ui/sessions/{{.ID}}" hx-target="#session-{{.ID}}" hx-swap="outerHTML swap:0.3s" hx-confirm="Delete this session?">Delete</button>
+    </td>
+</tr>
+{{end}}

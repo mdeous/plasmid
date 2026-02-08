@@ -8,8 +8,11 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"fmt"
+	"io"
 	"math/big"
+	"net/http"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -28,22 +31,15 @@ func readPemFile(path string) ([]byte, error) {
 }
 
 func writePemFile(path string, content []byte, pemType PemType) error {
-	var err error
-	// encode content to PEM
 	pemBytes := new(bytes.Buffer)
-	err = pem.Encode(pemBytes, &pem.Block{
+	err := pem.Encode(pemBytes, &pem.Block{
 		Type:  string(pemType),
 		Bytes: content,
 	})
 	if err != nil {
 		return err
 	}
-	// write PEM file to disk
-	err = os.WriteFile(path, pemBytes.Bytes(), 0600)
-	if err != nil {
-		return err
-	}
-	return nil
+	return os.WriteFile(path, pemBytes.Bytes(), 0600)
 }
 
 func WriteKeyToPem(key *rsa.PrivateKey, path string) error {
@@ -97,9 +93,13 @@ func GenerateCertificate(
 	postCode string,
 	expirationYears int,
 ) (*x509.Certificate, error) {
-	// generate CA certificate
+	serialNumber, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
+	if err != nil {
+		return nil, fmt.Errorf("unable to generate serial number: %v", err)
+	}
+
 	ca := &x509.Certificate{
-		SerialNumber: big.NewInt(1000),
+		SerialNumber: serialNumber,
 		Subject: pkix.Name{
 			Organization:  []string{orgName},
 			Country:       []string{country},
@@ -116,7 +116,6 @@ func GenerateCertificate(
 		BasicConstraintsValid: true,
 	}
 
-	// generate certificate
 	certBytes, err := x509.CreateCertificate(rand.Reader, ca, ca, &key.PublicKey, key)
 	if err != nil {
 		return nil, fmt.Errorf("unable to generate certificate: %v", err)
@@ -126,4 +125,19 @@ func GenerateCertificate(
 		return nil, fmt.Errorf("unable to parse certificate: %v", err)
 	}
 	return cert, nil
+}
+
+func FetchSPMetadata(source string) ([]byte, error) {
+	if strings.HasPrefix(source, "http://") || strings.HasPrefix(source, "https://") {
+		resp, err := http.Get(source)
+		if err != nil {
+			return nil, fmt.Errorf("unable to fetch SP metadata from '%s': %v", source, err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("unexpected status %d fetching SP metadata from '%s'", resp.StatusCode, source)
+		}
+		return io.ReadAll(resp.Body)
+	}
+	return os.ReadFile(source)
 }

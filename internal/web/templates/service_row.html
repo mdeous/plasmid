@@ -1,0 +1,9 @@
+{{define "service_row"}}
+<tr id="service-{{.Name}}">
+    <td>{{.Name}}</td>
+    <td><code>{{.EntityID}}</code></td>
+    <td>
+        <button class="secondary outline" hx-delete="/ui/services/{{.Name}}" hx-target="#service-{{.Name}}" hx-swap="outerHTML swap:0.3s" hx-confirm="Delete service {{.Name}}?">Delete</button>
+    </td>
+</tr>
+{{end}}

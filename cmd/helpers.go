@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"os"
+
 	"github.com/mdeous/plasmid/pkg/config"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -13,12 +15,12 @@ type Flag struct {
 	Name        string
 	ShortHand   string
 	Usage       string
-	AltDefault  interface{}
+	AltDefault  any
 	ConfigField string
 	Required    bool
 }
 
-func (f *Flag) Default() interface{} {
+func (f *Flag) Default() any {
 	if f.AltDefault == nil && f.ConfigField != "" {
 		configDefault := config.DefaultValues[f.ConfigField]
 		if configDefault != nil {
@@ -38,12 +40,13 @@ func (f *Flag) Flags() *pflag.FlagSet {
 func (f *Flag) bind() {
 	if f.Required {
 		if err := f.Command.MarkFlagRequired(f.Name); err != nil {
-			logr.Fatalf(err.Error())
+			logr.Error("failed to mark flag as required", "flag", f.Name, "error", err)
+			os.Exit(1)
 		}
 	}
-	err := viper.BindPFlag(f.ConfigField, f.Flags().Lookup(f.Name))
-	if err != nil {
-		logr.Fatalf(err.Error())
+	if err := viper.BindPFlag(f.ConfigField, f.Flags().Lookup(f.Name)); err != nil {
+		logr.Error("failed to bind flag", "flag", f.Name, "error", err)
+		os.Exit(1)
 	}
 }
 
@@ -67,15 +70,7 @@ func (f *Flag) BindStringArray() {
 
 func handleError(err error) {
 	if err != nil {
-		logr.Fatalf(err.Error())
+		logr.Error(err.Error())
+		os.Exit(1)
 	}
-}
-
-func stringInArray(resourceId string, knownIds []string) bool {
-	for _, rid := range knownIds {
-		if rid == resourceId {
-			return true
-		}
-	}
-	return false
 }
