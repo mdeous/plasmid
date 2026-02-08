@@ -113,6 +113,7 @@ func (h *WebHandler) handleTamperSave(w http.ResponseWriter, r *http.Request) {
 	nameIDFormat := r.FormValue("name_id_format")
 	issuer := strings.TrimSpace(r.FormValue("issuer"))
 	audience := strings.TrimSpace(r.FormValue("audience"))
+	relayState := strings.TrimSpace(r.FormValue("relay_state"))
 
 	attrNames := r.Form["attr_name"]
 	attrValues := r.Form["attr_value"]
@@ -129,6 +130,6 @@ func (h *WebHandler) handleTamperSave(w http.ResponseWriter, r *http.Request) {
 		attrs = append(attrs, internalsml.TamperAttribute{Name: name, Value: value})
 	}
 
-	h.tamperConfig.Update(enabled, removeSignature, nameID, nameIDFormat, issuer, audience, attrs)
+	h.tamperConfig.Update(enabled, removeSignature, nameID, nameIDFormat, issuer, audience, relayState, attrs)
 	http.Redirect(w, r, "/ui/tamper", http.StatusSeeOther)
 }

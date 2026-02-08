@@ -26,6 +26,7 @@ type TamperConfig struct {
 	NameIDFormat     string
 	Issuer           string
 	Audience         string
+	RelayState       string
 	InjectAttributes []TamperAttribute
 	lastMods         []TamperModification
 }
@@ -61,6 +62,7 @@ type TamperConfigSnapshot struct {
 	NameIDFormat     string
 	Issuer           string
 	Audience         string
+	RelayState       string
 	InjectAttributes []TamperAttribute
 }
 
@@ -74,13 +76,14 @@ func (tc *TamperConfig) GetConfig() TamperConfigSnapshot {
 		NameIDFormat:     tc.NameIDFormat,
 		Issuer:           tc.Issuer,
 		Audience:         tc.Audience,
+		RelayState:       tc.RelayState,
 		InjectAttributes: make([]TamperAttribute, len(tc.InjectAttributes)),
 	}
 	copy(snap.InjectAttributes, tc.InjectAttributes)
 	return snap
 }
 
-func (tc *TamperConfig) Update(enabled, removeSignature bool, nameID, nameIDFormat, issuer, audience string, attrs []TamperAttribute) {
+func (tc *TamperConfig) Update(enabled, removeSignature bool, nameID, nameIDFormat, issuer, audience, relayState string, attrs []TamperAttribute) {
 	tc.mu.Lock()
 	defer tc.mu.Unlock()
 	tc.Enabled = enabled
@@ -89,7 +92,14 @@ func (tc *TamperConfig) Update(enabled, removeSignature bool, nameID, nameIDForm
 	tc.NameIDFormat = nameIDFormat
 	tc.Issuer = issuer
 	tc.Audience = audience
+	tc.RelayState = relayState
 	tc.InjectAttributes = attrs
+}
+
+func (tc *TamperConfig) RecordModification(mod TamperModification) {
+	tc.mu.Lock()
+	defer tc.mu.Unlock()
+	tc.lastMods = append(tc.lastMods, mod)
 }
 
 type TamperableAssertionMaker struct {
@@ -183,7 +193,7 @@ func (t TamperableAssertionMaker) MakeAssertion(req *crewsaml.IdpAuthnRequest, s
 		req.AssertionEl = req.Assertion.Element()
 	}
 
-	t.Config.lastMods = mods
+	t.Config.lastMods = append(t.Config.lastMods, mods...)
 
 	return nil
 }

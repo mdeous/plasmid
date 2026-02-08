@@ -31,6 +31,8 @@ func InterceptMiddleware(inspector *Inspector, tamperConfig *TamperConfig, logge
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		captureInbound(inspector, logger, r)
 
+		tamperRelayState(tamperConfig, r)
+
 		capture := &responseCapture{
 			ResponseWriter: w,
 			body:           &bytes.Buffer{},
@@ -38,6 +40,31 @@ func InterceptMiddleware(inspector *Inspector, tamperConfig *TamperConfig, logge
 		next.ServeHTTP(capture, r)
 
 		captureOutbound(inspector, tamperConfig, logger, r, capture.body.Bytes())
+	})
+}
+
+func tamperRelayState(tamperConfig *TamperConfig, r *http.Request) {
+	if tamperConfig == nil || !tamperConfig.IsEnabled() {
+		return
+	}
+	tamperConfig.mu.RLock()
+	newRelayState := tamperConfig.RelayState
+	tamperConfig.mu.RUnlock()
+	if newRelayState == "" {
+		return
+	}
+
+	_ = r.ParseForm()
+	oldRelayState := r.Form.Get("RelayState")
+	if oldRelayState == "" && r.URL.Query().Get("SAMLRequest") == "" && r.FormValue("SAMLRequest") == "" {
+		return
+	}
+	r.Form.Set("RelayState", newRelayState)
+	r.PostForm.Set("RelayState", newRelayState)
+	tamperConfig.RecordModification(TamperModification{
+		Field:    "RelayState",
+		OldValue: oldRelayState,
+		NewValue: newRelayState,
 	})
 }
 
