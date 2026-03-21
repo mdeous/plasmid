@@ -11,7 +11,20 @@
         </label>
         <label>
             <input type="checkbox" name="remove_signature" {{if .Config.RemoveSignature}}checked{{end}}>
-            Remove Signature (send unsigned assertions)
+            Remove Assertion Signature (pre-sign, removes before signing)
+        </label>
+    </fieldset>
+
+    <fieldset>
+        <legend>Signature Manipulation (post-sign)</legend>
+        <label>Signature Mode
+            <select name="signature_mode">
+                <option value="" {{if eq .Config.SignatureMode ""}}selected{{end}}>-- No Change --</option>
+                <option value="remove_response" {{if eq .Config.SignatureMode "remove_response"}}selected{{end}}>Remove Response Signature</option>
+                <option value="remove_both" {{if eq .Config.SignatureMode "remove_both"}}selected{{end}}>Remove Both Signatures</option>
+                <option value="empty_value" {{if eq .Config.SignatureMode "empty_value"}}selected{{end}}>Empty SignatureValue</option>
+                <option value="invalid_digest" {{if eq .Config.SignatureMode "invalid_digest"}}selected{{end}}>Corrupt DigestValue</option>
+            </select>
         </label>
     </fieldset>
 
@@ -38,6 +51,77 @@
         <label>RelayState Override
             <input type="text" name="relay_state" value="{{.Config.RelayState}}" placeholder="Leave empty to keep original">
         </label>
+    </fieldset>
+
+    <fieldset>
+        <legend>XML Signature Wrapping (XSW)</legend>
+        <small>Wraps or duplicates the signed assertion to exploit SP signature validation flaws.</small>
+        <label>XSW Variant
+            <select name="xsw_variant" id="xsw_variant">
+                <option value="" {{if eq .Config.XSWVariant ""}}selected{{end}}>-- Disabled --</option>
+                <option value="xsw1" {{if eq .Config.XSWVariant "xsw1"}}selected{{end}}>XSW1 - Response wrapping (clone in Signature)</option>
+                <option value="xsw2" {{if eq .Config.XSWVariant "xsw2"}}selected{{end}}>XSW2 - Response wrapping (clone before Signature)</option>
+                <option value="xsw3" {{if eq .Config.XSWVariant "xsw3"}}selected{{end}}>XSW3 - Evil Assertion before original</option>
+                <option value="xsw4" {{if eq .Config.XSWVariant "xsw4"}}selected{{end}}>XSW4 - Original nested inside evil</option>
+                <option value="xsw5" {{if eq .Config.XSWVariant "xsw5"}}selected{{end}}>XSW5 - Tamper signed, append unsigned copy</option>
+                <option value="xsw6" {{if eq .Config.XSWVariant "xsw6"}}selected{{end}}>XSW6 - Tamper signed, copy in Signature</option>
+                <option value="xsw7" {{if eq .Config.XSWVariant "xsw7"}}selected{{end}}>XSW7 - Evil in Extensions element</option>
+                <option value="xsw8" {{if eq .Config.XSWVariant "xsw8"}}selected{{end}}>XSW8 - Original in ds:Object</option>
+            </select>
+        </label>
+        <div id="xsw_fields" style="display:none;">
+            <label>Evil NameID
+                <input type="text" name="xsw_nameid" value="{{.Config.XSWNameID}}" placeholder="NameID for the tampered/evil assertion">
+            </label>
+        </div>
+    </fieldset>
+
+    <fieldset>
+        <legend>Comment Injection</legend>
+        <small>Injects an XML comment inside the NameID value.</small>
+        <label>
+            <input type="checkbox" name="comment_injection" id="comment_injection" {{if .Config.CommentInjection}}checked{{end}}>
+            Enable Comment Injection
+        </label>
+        <div id="comment_fields" style="display:none;">
+            <label>Character Position
+                <input type="number" name="comment_position" value="{{.Config.CommentPosition}}" min="0" placeholder="Offset where to insert comment in NameID">
+            </label>
+            <small>Example: NameID "admin@evil.com" with position 5 becomes "admin&lt;!-- --&gt;@evil.com"</small>
+        </div>
+    </fieldset>
+
+    <fieldset>
+        <legend>XXE Injection</legend>
+        <small>Injects XML External Entity declarations into the SAML response to test for XXE vulnerabilities.</small>
+        <label>
+            <input type="checkbox" name="xxe_enabled" id="xxe_enabled" {{if .Config.XXEEnabled}}checked{{end}}>
+            Enable XXE Injection
+        </label>
+        <div id="xxe_fields" style="display:none;">
+            <label>XXE Type
+                <select name="xxe_type" id="xxe_type">
+                    <option value="file" {{if eq .Config.XXEType "file"}}selected{{end}}>Local File Read</option>
+                    <option value="ssrf" {{if eq .Config.XXEType "ssrf"}}selected{{end}}>SSRF</option>
+                    <option value="oob" {{if eq .Config.XXEType "oob"}}selected{{end}}>Out-of-Band</option>
+                    <option value="custom" {{if eq .Config.XXEType "custom"}}selected{{end}}>Custom DOCTYPE</option>
+                </select>
+            </label>
+            <label>Target (file path or URL)
+                <input type="text" name="xxe_target" value="{{.Config.XXETarget}}" placeholder="/etc/passwd or http://attacker.com/xxe">
+            </label>
+            <label>Placement
+                <select name="xxe_placement">
+                    <option value="nameid" {{if eq .Config.XXEPlacement "nameid"}}selected{{end}}>NameID</option>
+                    <option value="issuer" {{if eq .Config.XXEPlacement "issuer"}}selected{{end}}>Issuer</option>
+                </select>
+            </label>
+            <div id="xxe_custom_field" style="display:none;">
+                <label>Custom DOCTYPE content
+                    <textarea name="xxe_custom" rows="3" placeholder="<!ENTITY xxe SYSTEM 'file:///etc/passwd'>">{{.Config.XXECustom}}</textarea>
+                </label>
+            </div>
+        </div>
     </fieldset>
 
     <fieldset>

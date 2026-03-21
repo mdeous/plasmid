@@ -1,0 +1,11 @@
+{{define "replay_form"}}
+<html><body>
+<h3>Replaying SAML Response to {{.ACSEndpoint}}</h3>
+<form method="post" action="{{.ACSEndpoint}}" id="replayForm">
+    <input type="hidden" name="SAMLResponse" value="{{.RawBase64}}">
+    <input type="hidden" name="RelayState" value="{{.RelayState}}">
+    <button type="submit">Submit</button>
+</form>
+<script>document.getElementById('replayForm').submit();</script>
+</body></html>
+{{end}}

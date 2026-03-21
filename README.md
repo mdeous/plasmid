@@ -51,7 +51,8 @@ It is meant to run with minimal configuration and provide an easy way to test SA
 - SP-initiated and IdP-initiated SAML SSO flows
 - Web dashboard for managing users, services, sessions, and shortcuts
 - SAML inspector for capturing and examining request/response exchanges
-- Assertion tampering modifying SAML assertions on the fly (NameID, Issuer, Audience, attributes, signature removal)
+- Assertion tampering for modifying SAML assertions on the fly
+  (common attacks, signature removal, modification of NameID, Issuer, Audience, attributes)
 - CLI client for interacting with a running instance
 
 ## Installation
@@ -223,7 +224,7 @@ Plasmid includes a web dashboard accessible at `<base-url>/ui/`. It provides pag
 - **Sessions** — view and manage active sessions
 - **Shortcuts** — manage IdP-initiated login links
 - **Inspector** — view captured SAML request/response exchanges in real time
-- **Tamper** — configure assertion tampering (modify NameID, Issuer, Audience, attributes, or remove signatures)
+- **Tamper** — assertion tampering settings
 - **Settings** — view IdP certificate details
 
 ### API Endpoints

@@ -2,6 +2,7 @@ package web
 
 import (
 	"net/http"
+	"strconv"
 	"strings"
 
 	internalsml "github.com/mdeous/plasmid/internal/saml"
@@ -19,6 +20,7 @@ func (h *WebHandler) RegisterInspectorRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /ui/inspector", h.handleInspector)
 	mux.HandleFunc("GET /ui/inspector/exchanges", h.handleInspectorExchanges)
 	mux.HandleFunc("GET /ui/inspector/close", h.handleInspectorClose)
+	mux.HandleFunc("GET /ui/inspector/{id}/replay", h.handleReplay)
 	mux.HandleFunc("GET /ui/inspector/{id}", h.handleInspectorDetail)
 	mux.HandleFunc("POST /ui/inspector/clear", h.handleInspectorClear)
 	mux.HandleFunc("GET /ui/tamper", h.handleTamper)
@@ -97,6 +99,24 @@ func (h *WebHandler) handleTamper(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (h *WebHandler) handleReplay(w http.ResponseWriter, r *http.Request) {
+	if h.inspector == nil {
+		http.NotFound(w, r)
+		return
+	}
+	id := r.PathValue("id")
+	exchange := h.inspector.Get(id)
+	if exchange == nil {
+		http.NotFound(w, r)
+		return
+	}
+	if exchange.Direction != "Response" || exchange.RawBase64 == "" {
+		http.Error(w, "No replayable response data", http.StatusBadRequest)
+		return
+	}
+	h.renderPartial(w, "replay_form", exchange)
+}
+
 func (h *WebHandler) handleTamperSave(w http.ResponseWriter, r *http.Request) {
 	if h.tamperConfig == nil {
 		http.Error(w, "Tamper not configured", http.StatusInternalServerError)
@@ -109,11 +129,24 @@ func (h *WebHandler) handleTamperSave(w http.ResponseWriter, r *http.Request) {
 
 	enabled := r.FormValue("enabled") == "on"
 	removeSignature := r.FormValue("remove_signature") == "on"
+	signatureMode := r.FormValue("signature_mode")
 	nameID := strings.TrimSpace(r.FormValue("name_id"))
 	nameIDFormat := r.FormValue("name_id_format")
 	issuer := strings.TrimSpace(r.FormValue("issuer"))
 	audience := strings.TrimSpace(r.FormValue("audience"))
 	relayState := strings.TrimSpace(r.FormValue("relay_state"))
+
+	xswVariant := r.FormValue("xsw_variant")
+	xswNameID := strings.TrimSpace(r.FormValue("xsw_nameid"))
+
+	xxeEnabled := r.FormValue("xxe_enabled") == "on"
+	xxeType := r.FormValue("xxe_type")
+	xxeTarget := strings.TrimSpace(r.FormValue("xxe_target"))
+	xxePlacement := r.FormValue("xxe_placement")
+	xxeCustom := strings.TrimSpace(r.FormValue("xxe_custom"))
+
+	commentInjection := r.FormValue("comment_injection") == "on"
+	commentPosition, _ := strconv.Atoi(r.FormValue("comment_position"))
 
 	attrNames := r.Form["attr_name"]
 	attrValues := r.Form["attr_value"]
@@ -130,6 +163,25 @@ func (h *WebHandler) handleTamperSave(w http.ResponseWriter, r *http.Request) {
 		attrs = append(attrs, internalsml.TamperAttribute{Name: name, Value: value})
 	}
 
-	h.tamperConfig.Update(enabled, removeSignature, nameID, nameIDFormat, issuer, audience, relayState, attrs)
+	h.tamperConfig.Update(internalsml.TamperUpdateInput{
+		Enabled:          enabled,
+		RemoveSignature:  removeSignature,
+		SignatureMode:    signatureMode,
+		NameID:           nameID,
+		NameIDFormat:     nameIDFormat,
+		Issuer:           issuer,
+		Audience:         audience,
+		RelayState:       relayState,
+		InjectAttributes: attrs,
+		XSWVariant:       xswVariant,
+		XSWNameID:        xswNameID,
+		XXEEnabled:       xxeEnabled,
+		XXEType:          xxeType,
+		XXETarget:        xxeTarget,
+		XXEPlacement:     xxePlacement,
+		XXECustom:        xxeCustom,
+		CommentInjection: commentInjection,
+		CommentPosition:  commentPosition,
+	})
 	http.Redirect(w, r, "/ui/tamper", http.StatusSeeOther)
 }

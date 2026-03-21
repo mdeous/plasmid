@@ -15,16 +15,31 @@ import (
 	crewsaml "github.com/crewjam/saml"
 )
 
-var samlResponseRe = regexp.MustCompile(`name="SAMLResponse"\s+value="([^"]+)"`)
+var (
+	samlResponseRe = regexp.MustCompile(`name="SAMLResponse"\s+value="([^"]+)"`)
+	formActionRe   = regexp.MustCompile(`action="([^"]+)"`)
+)
 
 type responseCapture struct {
 	http.ResponseWriter
-	body *bytes.Buffer
+	body       *bytes.Buffer
+	bufferOnly bool
+	statusCode int
 }
 
 func (rc *responseCapture) Write(b []byte) (int, error) {
 	rc.body.Write(b)
+	if rc.bufferOnly {
+		return len(b), nil
+	}
 	return rc.ResponseWriter.Write(b)
+}
+
+func (rc *responseCapture) WriteHeader(code int) {
+	rc.statusCode = code
+	if !rc.bufferOnly {
+		rc.ResponseWriter.WriteHeader(code)
+	}
 }
 
 func InterceptMiddleware(inspector *Inspector, tamperConfig *TamperConfig, logger *slog.Logger, next http.Handler) http.Handler {
@@ -33,14 +48,61 @@ func InterceptMiddleware(inspector *Inspector, tamperConfig *TamperConfig, logge
 
 		tamperRelayState(tamperConfig, r)
 
+		needsPostSign := tamperConfig != nil && tamperConfig.NeedsPostSignTransform()
 		capture := &responseCapture{
 			ResponseWriter: w,
 			body:           &bytes.Buffer{},
+			bufferOnly:     needsPostSign,
+			statusCode:     http.StatusOK,
 		}
 		next.ServeHTTP(capture, r)
 
-		captureOutbound(inspector, tamperConfig, logger, r, capture.body.Bytes())
+		if needsPostSign && capture.bufferOnly {
+			body := transformAndSend(w, capture, tamperConfig, logger)
+			captureOutbound(inspector, tamperConfig, logger, r, body)
+		} else {
+			captureOutbound(inspector, tamperConfig, logger, r, capture.body.Bytes())
+		}
 	})
+}
+
+func transformAndSend(w http.ResponseWriter, capture *responseCapture, tamperConfig *TamperConfig, logger *slog.Logger) []byte {
+	body := capture.body.Bytes()
+
+	matches := samlResponseRe.FindSubmatchIndex(body)
+	if matches == nil || len(matches) < 4 {
+		if capture.statusCode != 0 {
+			w.WriteHeader(capture.statusCode)
+		}
+		w.Write(body)
+		return body
+	}
+
+	samlB64 := html.UnescapeString(string(body[matches[2]:matches[3]]))
+	transformed, mods, err := TransformSAMLResponse(samlB64, tamperConfig, logger)
+	if err != nil {
+		logger.Error("post-sign transform failed", "error", err)
+		if capture.statusCode != 0 {
+			w.WriteHeader(capture.statusCode)
+		}
+		w.Write(body)
+		return body
+	}
+
+	for _, mod := range mods {
+		tamperConfig.RecordModification(mod)
+	}
+
+	var result []byte
+	result = append(result, body[:matches[2]]...)
+	result = append(result, []byte(transformed)...)
+	result = append(result, body[matches[3]:]...)
+
+	if capture.statusCode != 0 {
+		w.WriteHeader(capture.statusCode)
+	}
+	w.Write(result)
+	return result
 }
 
 func tamperRelayState(tamperConfig *TamperConfig, r *http.Request) {
@@ -172,6 +234,16 @@ func captureOutbound(inspector *Inspector, tamperConfig *TamperConfig, logger *s
 		tampered = len(mods) > 0
 	}
 
+	acsEndpoint := ""
+	if actionMatch := formActionRe.FindSubmatch(body); len(actionMatch) >= 2 {
+		acsEndpoint = html.UnescapeString(string(actionMatch[1]))
+	}
+
+	rawBase64 := ""
+	if samlMatch := samlResponseRe.FindSubmatch(body); len(samlMatch) >= 2 {
+		rawBase64 = html.UnescapeString(string(samlMatch[1]))
+	}
+
 	exchange := SAMLExchange{
 		Direction:       "Response",
 		Endpoint:        r.URL.Path,
@@ -185,6 +257,8 @@ func captureOutbound(inspector *Inspector, tamperConfig *TamperConfig, logger *s
 		Tampered:        tampered,
 		Modifications:   mods,
 		Attributes:      attrs,
+		ACSEndpoint:     acsEndpoint,
+		RawBase64:       rawBase64,
 	}
 	inspector.Record(exchange)
 }

@@ -19,16 +19,26 @@ type TamperModification struct {
 }
 
 type TamperConfig struct {
-	mu               sync.RWMutex
-	Enabled          bool
-	RemoveSignature  bool
-	NameID           string
-	NameIDFormat     string
-	Issuer           string
-	Audience         string
-	RelayState       string
-	InjectAttributes []TamperAttribute
-	lastMods         []TamperModification
+	mu                sync.RWMutex
+	Enabled           bool
+	RemoveSignature   bool
+	SignatureMode     string
+	NameID            string
+	NameIDFormat      string
+	Issuer            string
+	Audience          string
+	RelayState        string
+	InjectAttributes  []TamperAttribute
+	XSWVariant        string
+	XSWNameID         string
+	XXEEnabled        bool
+	XXEType           string
+	XXETarget         string
+	XXEPlacement      string
+	XXECustom         string
+	CommentInjection  bool
+	CommentPosition   int
+	lastMods          []TamperModification
 }
 
 func NewTamperConfig() *TamperConfig {
@@ -47,6 +57,12 @@ func (tc *TamperConfig) ShouldRemoveSignature() bool {
 	return tc.Enabled && tc.RemoveSignature
 }
 
+func (tc *TamperConfig) NeedsPostSignTransform() bool {
+	tc.mu.RLock()
+	defer tc.mu.RUnlock()
+	return tc.Enabled && (tc.XSWVariant != "" || tc.XXEEnabled || tc.SignatureMode != "" || tc.CommentInjection)
+}
+
 func (tc *TamperConfig) ConsumeModifications() []TamperModification {
 	tc.mu.Lock()
 	defer tc.mu.Unlock()
@@ -56,14 +72,24 @@ func (tc *TamperConfig) ConsumeModifications() []TamperModification {
 }
 
 type TamperConfigSnapshot struct {
-	Enabled          bool
-	RemoveSignature  bool
-	NameID           string
-	NameIDFormat     string
-	Issuer           string
-	Audience         string
-	RelayState       string
-	InjectAttributes []TamperAttribute
+	Enabled           bool
+	RemoveSignature   bool
+	SignatureMode     string
+	NameID            string
+	NameIDFormat      string
+	Issuer            string
+	Audience          string
+	RelayState        string
+	InjectAttributes  []TamperAttribute
+	XSWVariant        string
+	XSWNameID         string
+	XXEEnabled        bool
+	XXEType           string
+	XXETarget         string
+	XXEPlacement      string
+	XXECustom         string
+	CommentInjection  bool
+	CommentPosition   int
 }
 
 func (tc *TamperConfig) GetConfig() TamperConfigSnapshot {
@@ -72,28 +98,69 @@ func (tc *TamperConfig) GetConfig() TamperConfigSnapshot {
 	snap := TamperConfigSnapshot{
 		Enabled:          tc.Enabled,
 		RemoveSignature:  tc.RemoveSignature,
+		SignatureMode:    tc.SignatureMode,
 		NameID:           tc.NameID,
 		NameIDFormat:     tc.NameIDFormat,
 		Issuer:           tc.Issuer,
 		Audience:         tc.Audience,
 		RelayState:       tc.RelayState,
 		InjectAttributes: make([]TamperAttribute, len(tc.InjectAttributes)),
+		XSWVariant:       tc.XSWVariant,
+		XSWNameID:        tc.XSWNameID,
+		XXEEnabled:       tc.XXEEnabled,
+		XXEType:          tc.XXEType,
+		XXETarget:        tc.XXETarget,
+		XXEPlacement:     tc.XXEPlacement,
+		XXECustom:        tc.XXECustom,
+		CommentInjection: tc.CommentInjection,
+		CommentPosition:  tc.CommentPosition,
 	}
 	copy(snap.InjectAttributes, tc.InjectAttributes)
 	return snap
 }
 
-func (tc *TamperConfig) Update(enabled, removeSignature bool, nameID, nameIDFormat, issuer, audience, relayState string, attrs []TamperAttribute) {
+type TamperUpdateInput struct {
+	Enabled          bool
+	RemoveSignature  bool
+	SignatureMode    string
+	NameID           string
+	NameIDFormat     string
+	Issuer           string
+	Audience         string
+	RelayState       string
+	InjectAttributes []TamperAttribute
+	XSWVariant       string
+	XSWNameID        string
+	XXEEnabled       bool
+	XXEType          string
+	XXETarget        string
+	XXEPlacement     string
+	XXECustom        string
+	CommentInjection bool
+	CommentPosition  int
+}
+
+func (tc *TamperConfig) Update(input TamperUpdateInput) {
 	tc.mu.Lock()
 	defer tc.mu.Unlock()
-	tc.Enabled = enabled
-	tc.RemoveSignature = removeSignature
-	tc.NameID = nameID
-	tc.NameIDFormat = nameIDFormat
-	tc.Issuer = issuer
-	tc.Audience = audience
-	tc.RelayState = relayState
-	tc.InjectAttributes = attrs
+	tc.Enabled = input.Enabled
+	tc.RemoveSignature = input.RemoveSignature
+	tc.SignatureMode = input.SignatureMode
+	tc.NameID = input.NameID
+	tc.NameIDFormat = input.NameIDFormat
+	tc.Issuer = input.Issuer
+	tc.Audience = input.Audience
+	tc.RelayState = input.RelayState
+	tc.InjectAttributes = input.InjectAttributes
+	tc.XSWVariant = input.XSWVariant
+	tc.XSWNameID = input.XSWNameID
+	tc.XXEEnabled = input.XXEEnabled
+	tc.XXEType = input.XXEType
+	tc.XXETarget = input.XXETarget
+	tc.XXEPlacement = input.XXEPlacement
+	tc.XXECustom = input.XXECustom
+	tc.CommentInjection = input.CommentInjection
+	tc.CommentPosition = input.CommentPosition
 }
 
 func (tc *TamperConfig) RecordModification(mod TamperModification) {

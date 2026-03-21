@@ -1,7 +1,12 @@
 {{define "inspector_detail"}}
 <div style="display: flex; justify-content: space-between; align-items: center;">
     <h3 style="margin: 0;">{{.Direction}} - {{.Endpoint}}</h3>
-    <button class="outline" hx-get="/ui/inspector/close" hx-target="#exchange-detail" hx-swap="innerHTML">Close</button>
+    <div>
+        {{if and (eq .Direction "Response") .RawBase64}}
+        <a href="/ui/inspector/{{.ID}}/replay" target="_blank" role="button" class="outline">Replay</a>
+        {{end}}
+        <button class="outline" hx-get="/ui/inspector/close" hx-target="#exchange-detail" hx-swap="innerHTML">Close</button>
+    </div>
 </div>
 <table>
     <tr><th>Time</th><td>{{.Timestamp}}</td></tr>

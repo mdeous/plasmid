@@ -26,6 +26,8 @@ type SAMLExchange struct {
 	Attributes      []Attribute
 	RawXML          string
 	RemoteAddr      string
+	ACSEndpoint     string
+	RawBase64       string
 }
 
 type Inspector struct {
