@@ -51,8 +51,14 @@ It is meant to run with minimal configuration and provide an easy way to test SA
 - SP-initiated and IdP-initiated SAML SSO flows
 - Web dashboard for managing users, services, sessions, and shortcuts
 - SAML inspector for capturing and examining request/response exchanges
-- Assertion tampering for modifying SAML assertions on the fly
-  (common attacks, signature removal, modification of NameID, Issuer, Audience, attributes)
+- Assertion tampering for modifying SAML assertions on the fly:
+  - Signature manipulation (removal, empty SignatureValue, corrupt DigestValue)
+  - XML Signature Wrapping attacks (8 variants)
+  - XXE injection (local file read, SSRF, out-of-band exfiltration, custom DOCTYPE)
+  - XML comment injection in NameID values
+  - Override NameID, NameID format, Issuer, Audience, and RelayState
+  - Dynamic attribute injection and modification
+- SAML response replay from the inspector
 - CLI client for interacting with a running instance
 
 ## Installation
