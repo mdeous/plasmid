@@ -1,6 +1,7 @@
 package web
 
 import (
+	"html"
 	"net/http"
 	"strconv"
 	"strings"
@@ -58,7 +59,7 @@ func (h *WebHandler) handleInspectorExchanges(w http.ResponseWriter, r *http.Req
 		if ex.Tampered {
 			tampered = `<span class="badge badge-red">Yes</span>`
 		}
-		w.Write([]byte(`<tr><td>` + ex.Timestamp + `</td><td>` + ex.Direction + `</td><td><code>` + ex.Endpoint + `</code></td><td>` + ex.ServiceProvider + `</td><td>` + ex.NameID + `</td><td>` + signed + `</td><td>` + tampered + `</td><td><button class="outline" hx-get="/ui/inspector/` + ex.ID + `" hx-target="#exchange-detail" hx-swap="innerHTML">View</button></td></tr>`))
+		w.Write([]byte(`<tr><td>` + html.EscapeString(ex.Timestamp) + `</td><td>` + html.EscapeString(ex.Direction) + `</td><td><code>` + html.EscapeString(ex.Endpoint) + `</code></td><td>` + html.EscapeString(ex.ServiceProvider) + `</td><td>` + html.EscapeString(ex.NameID) + `</td><td>` + signed + `</td><td>` + tampered + `</td><td><button class="outline" hx-get="/ui/inspector/` + html.EscapeString(ex.ID) + `" hx-target="#exchange-detail" hx-swap="innerHTML">View</button></td></tr>`))
 	}
 	w.Write([]byte(`</tbody></table>`))
 }
