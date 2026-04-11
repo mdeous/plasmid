@@ -7,8 +7,8 @@ import (
 )
 
 var (
-	nameIDRe  = regexp.MustCompile(`(<saml:NameID[^>]*>)([^<]+)(</saml:NameID>)`)
-	issuerRe  = regexp.MustCompile(`(<saml:Issuer[^>]*>)([^<]+)(</saml:Issuer>)`)
+	nameIDRe  = regexp.MustCompile(`(<(?:[a-zA-Z0-9]+:)?NameID[^>]*>)([^<]+)(</(?:[a-zA-Z0-9]+:)?NameID>)`)
+	issuerRe  = regexp.MustCompile(`(<(?:[a-zA-Z0-9]+:)?Issuer[^>]*>)([^<]+)(</(?:[a-zA-Z0-9]+:)?Issuer>)`)
 	xmlDeclRe = regexp.MustCompile(`<\?xml[^?]*\?>`)
 )
 
