@@ -27,6 +27,9 @@ func readPemFile(path string) ([]byte, error) {
 		return nil, err
 	}
 	decoded, _ := pem.Decode(pemBytes)
+	if decoded == nil {
+		return nil, fmt.Errorf("no valid PEM block found in '%s'", path)
+	}
 	return decoded.Bytes, nil
 }
 
@@ -129,7 +132,8 @@ func GenerateCertificate(
 
 func FetchSPMetadata(source string) ([]byte, error) {
 	if strings.HasPrefix(source, "http://") || strings.HasPrefix(source, "https://") {
-		resp, err := http.Get(source)
+		client := &http.Client{Timeout: 30 * time.Second}
+		resp, err := client.Get(source)
 		if err != nil {
 			return nil, fmt.Errorf("unable to fetch SP metadata from '%s': %v", source, err)
 		}

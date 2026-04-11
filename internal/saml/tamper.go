@@ -19,26 +19,26 @@ type TamperModification struct {
 }
 
 type TamperConfig struct {
-	mu                sync.RWMutex
-	Enabled           bool
-	RemoveSignature   bool
-	SignatureMode     string
-	NameID            string
-	NameIDFormat      string
-	Issuer            string
-	Audience          string
-	RelayState        string
-	InjectAttributes  []TamperAttribute
-	XSWVariant        string
-	XSWNameID         string
-	XXEEnabled        bool
-	XXEType           string
-	XXETarget         string
-	XXEPlacement      string
-	XXECustom         string
-	CommentInjection  bool
-	CommentPosition   int
-	lastMods          []TamperModification
+	mu               sync.RWMutex
+	Enabled          bool
+	RemoveSignature  bool
+	SignatureMode    string
+	NameID           string
+	NameIDFormat     string
+	Issuer           string
+	Audience         string
+	RelayState       string
+	InjectAttributes []TamperAttribute
+	XSWVariant       string
+	XSWNameID        string
+	XXEEnabled       bool
+	XXEType          string
+	XXETarget        string
+	XXEPlacement     string
+	XXECustom        string
+	CommentInjection bool
+	CommentPosition  int
+	lastMods         []TamperModification
 }
 
 func NewTamperConfig() *TamperConfig {
@@ -72,24 +72,24 @@ func (tc *TamperConfig) ConsumeModifications() []TamperModification {
 }
 
 type TamperConfigSnapshot struct {
-	Enabled           bool
-	RemoveSignature   bool
-	SignatureMode     string
-	NameID            string
-	NameIDFormat      string
-	Issuer            string
-	Audience          string
-	RelayState        string
-	InjectAttributes  []TamperAttribute
-	XSWVariant        string
-	XSWNameID         string
-	XXEEnabled        bool
-	XXEType           string
-	XXETarget         string
-	XXEPlacement      string
-	XXECustom         string
-	CommentInjection  bool
-	CommentPosition   int
+	Enabled          bool
+	RemoveSignature  bool
+	SignatureMode    string
+	NameID           string
+	NameIDFormat     string
+	Issuer           string
+	Audience         string
+	RelayState       string
+	InjectAttributes []TamperAttribute
+	XSWVariant       string
+	XSWNameID        string
+	XXEEnabled       bool
+	XXEType          string
+	XXETarget        string
+	XXEPlacement     string
+	XXECustom        string
+	CommentInjection bool
+	CommentPosition  int
 }
 
 func (tc *TamperConfig) GetConfig() TamperConfigSnapshot {
@@ -203,7 +203,7 @@ func (t TamperableAssertionMaker) MakeAssertion(req *crewsaml.IdpAuthnRequest, s
 		assertion.Issuer.Value = t.Config.Issuer
 	}
 
-	if t.Config.Audience != "" {
+	if t.Config.Audience != "" && assertion.Conditions != nil {
 		for i := range assertion.Conditions.AudienceRestrictions {
 			old := assertion.Conditions.AudienceRestrictions[i].Audience.Value
 			mods = append(mods, TamperModification{"Audience", old, t.Config.Audience})

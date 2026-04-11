@@ -52,19 +52,22 @@ func (f *Flag) bind() {
 
 func (f *Flag) BindString() {
 	defaultVal := f.Default()
-	f.Flags().StringP(f.Name, f.ShortHand, defaultVal.(string), f.Usage)
+	s, _ := defaultVal.(string)
+	f.Flags().StringP(f.Name, f.ShortHand, s, f.Usage)
 	f.bind()
 }
 
 func (f *Flag) BindInt() {
 	defaultVal := f.Default()
-	f.Flags().IntP(f.Name, f.ShortHand, defaultVal.(int), f.Usage)
+	n, _ := defaultVal.(int)
+	f.Flags().IntP(f.Name, f.ShortHand, n, f.Usage)
 	f.bind()
 }
 
 func (f *Flag) BindStringArray() {
 	defaultVal := f.Default()
-	f.Flags().StringArrayP(f.Name, f.ShortHand, defaultVal.([]string), f.Usage)
+	arr, _ := defaultVal.([]string)
+	f.Flags().StringArrayP(f.Name, f.ShortHand, arr, f.Usage)
 	f.bind()
 }
 
