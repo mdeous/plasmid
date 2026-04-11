@@ -152,7 +152,7 @@ func (p *Plasmid) handleLogin(w http.ResponseWriter, r *http.Request) {
 		Value:    session.ID,
 		MaxAge:   3600,
 		HttpOnly: true,
-		Secure:   r.URL.Scheme == "https",
+		Secure:   r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https",
 		Path:     "/",
 	})
 
@@ -257,11 +257,11 @@ func New(host string, port int, baseUrl *url.URL, privKey *rsa.PrivateKey, cert 
 	}
 
 	idpServer, err := samlidp.New(samlidp.Options{
-		URL:                *baseUrl,
-		Key:                privKey,
-		Certificate:        cert,
-		Store:              store,
-		LoginFormTemplate:  loginTmpl,
+		URL:               *baseUrl,
+		Key:               privKey,
+		Certificate:       cert,
+		Store:             store,
+		LoginFormTemplate: loginTmpl,
 	})
 	if err != nil {
 		return nil, err

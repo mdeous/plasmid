@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"path"
 	"strings"
+	"time"
 )
 
 type PlasmidClient struct {
@@ -99,7 +100,7 @@ func New(baseUrl string) (*PlasmidClient, error) {
 	p := &PlasmidClient{
 		BaseUrl:    u,
 		UserAgent:  "plasmid",
-		httpClient: &http.Client{},
+		httpClient: &http.Client{Timeout: 30 * time.Second},
 	}
 	return p, nil
 }
