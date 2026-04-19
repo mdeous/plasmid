@@ -8,36 +8,35 @@
 
 Minimal-configuration SAML identity provider for security testing of service provider implementations.
 
-> **Warning**
+> :warning: **Warning**
 >
 > This application is strictly meant for testing SAML service providers, no authentication is (nor will be) implemented
 > on the administration API endpoints it exposes. It MUST NOT be used as a production SAML IdP.
 
 ---
 
-- [plasmid](#plasmid)
-  - [Introduction](#introduction)
-  - [Features](#features)
-  - [Installation](#installation)
-    - [From Source](#from-source)
-    - [Pre-built Binaries](#pre-built-binaries)
-  - [Configuration](#configuration)
-  - [Usage](#usage)
-    - [SP-initiated Flow](#sp-initiated-flow)
-    - [IdP-initiated Flow](#idp-initiated-flow)
-    - [Docker](#docker)
-    - [Interacting With a Running Instance](#interacting-with-a-running-instance)
-      - [Common Operations](#common-operations)
-    - [Web Dashboard](#web-dashboard)
-    - [API Endpoints](#api-endpoints)
-      - [SSO](#sso)
-      - [Service providers](#service-providers)
-      - [Users](#users)
-      - [Sessions](#sessions)
-      - [Identity provider initiated flow](#identity-provider-initiated-flow)
-      - [Identity provider initiated flow links management](#identity-provider-initiated-flow-links-management)
-  - [Known Limitations](#known-limitations)
-  - [License](#license)
+- [Introduction](#introduction)
+- [Features](#features)
+- [Installation](#installation)
+  - [From Source](#from-source)
+  - [Pre-built Binaries](#pre-built-binaries)
+- [Configuration](#configuration)
+- [Usage](#usage)
+  - [SP-initiated Flow](#sp-initiated-flow)
+  - [IdP-initiated Flow](#idp-initiated-flow)
+  - [Docker](#docker)
+  - [Interacting With a Running Instance](#interacting-with-a-running-instance)
+    - [Common Operations](#common-operations)
+  - [Web Dashboard](#web-dashboard)
+  - [API Endpoints](#api-endpoints)
+    - [SSO](#sso)
+    - [Service providers](#service-providers)
+    - [Users](#users)
+    - [Sessions](#sessions)
+    - [Identity provider initiated flow](#identity-provider-initiated-flow)
+    - [Identity provider initiated flow links management](#identity-provider-initiated-flow-links-management)
+- [Known Limitations](#known-limitations)
+- [License](#license)
 
 ---
 
