@@ -53,7 +53,6 @@
 
     <fieldset>
         <legend>XML Signature Wrapping (XSW)</legend>
-        <small>Wraps or duplicates the signed assertion to exploit SP signature validation flaws.</small>
         <select name="xsw_variant" id="xsw_variant">
             <option value="" {{if eq .Config.XSWVariant ""}}selected{{end}}>— Off —</option>
             <option value="xsw1" {{if eq .Config.XSWVariant "xsw1"}}selected{{end}}>XSW1 - Response wrapping (clone in Signature)</option>
