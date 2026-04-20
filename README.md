@@ -2,7 +2,6 @@
 
 [![Build](https://github.com/mdeous/plasmid/actions/workflows/build.yml/badge.svg)](https://github.com/mdeous/plasmid/actions/workflows/build.yml)
 [![Docker Image](https://github.com/mdeous/plasmid/actions/workflows/docker.yml/badge.svg)](https://github.com/mdeous/plasmid/actions/workflows/docker.yml)
-[![Latest Release](https://img.shields.io/github/v/release/mdeous/plasmid)](https://github.com/mdeous/plasmid/releases/latest)
 [![License](https://img.shields.io/github/license/mdeous/plasmid)](https://github.com/mdeous/plasmid/blob/main/LICENSE)
 
 Minimal-configuration SAML identity provider for security testing of service provider implementations.
