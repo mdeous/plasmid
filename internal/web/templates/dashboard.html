@@ -28,7 +28,36 @@
         <button class="outline" onclick="copyToClipboard(document.getElementById('metadata-url').value, this)">Copy URL</button>
         <button class="outline" onclick="copyToClipboard(document.getElementById('metadata-xml').value, this)">Copy XML</button>
         <a href="/metadata" role="button" class="secondary outline">Download XML</a>
+        <a href="/metadata/cert.pem" role="button" class="secondary outline">Download PEM</a>
     </div>
     <textarea id="metadata-xml" hidden>{{.MetadataXML}}</textarea>
+</section>
+
+<section>
+    <h3>Recent Activity</h3>
+    {{if .RecentActivity}}
+    <table class="recent-activity">
+        <thead>
+            <tr>
+                <th>Time</th>
+                <th>Direction</th>
+                <th>SP</th>
+                <th>NameID</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range .RecentActivity}}
+            <tr>
+                <td><a href="/ui/inspector?open={{.ID}}">{{.Timestamp}}</a></td>
+                <td>{{.Direction}}</td>
+                <td>{{.ServiceProvider}}</td>
+                <td>{{.NameID}}</td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+    {{else}}
+    <p class="empty-state">No SAML exchanges captured yet. Trigger a flow via a <a href="/ui/shortcuts">login shortcut</a> or SP-initiated SSO to populate this list.</p>
+    {{end}}
 </section>
 {{end}}

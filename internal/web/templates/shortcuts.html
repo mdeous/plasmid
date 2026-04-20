@@ -4,12 +4,12 @@
 
 <details>
     <summary role="button" class="secondary">Add Shortcut</summary>
-    <form hx-post="/ui/shortcuts" hx-target="#shortcut-table-body" hx-swap="beforeend" hx-on::after-request="if(event.detail.successful) this.reset()">
+    <form hx-post="/ui/shortcuts" hx-target="#shortcut-table-body" hx-swap="beforeend" hx-on::after-request="if(event.detail.successful) { this.reset(); var es = document.querySelector('#shortcut-table-body .empty-state-row'); if (es) es.remove(); }">
         <div class="grid">
             <label>Name <input type="text" name="name" required></label>
             <label>SP Entity ID <input type="text" name="entity_id" required></label>
         </div>
-        <button type="submit">Create Shortcut</button>
+        <div><button type="submit" class="inline-submit">Create Shortcut</button></div>
     </form>
 </details>
 
@@ -22,8 +22,12 @@
         </tr>
     </thead>
     <tbody id="shortcut-table-body">
+        {{if .Shortcuts}}
         {{range .Shortcuts}}
         {{template "shortcut_row" .}}
+        {{end}}
+        {{else}}
+        <tr class="empty-state-row"><td colspan="3">No shortcuts yet. Create one to bookmark an IdP-initiated login URL.</td></tr>
         {{end}}
     </tbody>
 </table>

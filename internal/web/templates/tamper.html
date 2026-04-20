@@ -17,15 +17,13 @@
 
     <fieldset>
         <legend>Signature Manipulation (post-sign)</legend>
-        <label>Signature Mode
-            <select name="signature_mode">
-                <option value="" {{if eq .Config.SignatureMode ""}}selected{{end}}>-- No Change --</option>
-                <option value="remove_response" {{if eq .Config.SignatureMode "remove_response"}}selected{{end}}>Remove Response Signature</option>
-                <option value="remove_both" {{if eq .Config.SignatureMode "remove_both"}}selected{{end}}>Remove Both Signatures</option>
-                <option value="empty_value" {{if eq .Config.SignatureMode "empty_value"}}selected{{end}}>Empty SignatureValue</option>
-                <option value="invalid_digest" {{if eq .Config.SignatureMode "invalid_digest"}}selected{{end}}>Corrupt DigestValue</option>
-            </select>
-        </label>
+        <select name="signature_mode">
+            <option value="" {{if eq .Config.SignatureMode ""}}selected{{end}}>— Off —</option>
+            <option value="remove_response" {{if eq .Config.SignatureMode "remove_response"}}selected{{end}}>Remove Response Signature</option>
+            <option value="remove_both" {{if eq .Config.SignatureMode "remove_both"}}selected{{end}}>Remove Both Signatures</option>
+            <option value="empty_value" {{if eq .Config.SignatureMode "empty_value"}}selected{{end}}>Empty SignatureValue</option>
+            <option value="invalid_digest" {{if eq .Config.SignatureMode "invalid_digest"}}selected{{end}}>Corrupt DigestValue</option>
+        </select>
     </fieldset>
 
     <fieldset>
@@ -35,7 +33,7 @@
         </label>
         <label>NameID Format
             <select name="name_id_format">
-                <option value="" {{if eq .Config.NameIDFormat ""}}selected{{end}}>-- Keep Original --</option>
+                <option value="" {{if eq .Config.NameIDFormat ""}}selected{{end}}>— Off —</option>
                 <option value="urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress" {{if eq .Config.NameIDFormat "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"}}selected{{end}}>Email</option>
                 <option value="urn:oasis:names:tc:SAML:2.0:nameid-format:persistent" {{if eq .Config.NameIDFormat "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent"}}selected{{end}}>Persistent</option>
                 <option value="urn:oasis:names:tc:SAML:2.0:nameid-format:transient" {{if eq .Config.NameIDFormat "urn:oasis:names:tc:SAML:2.0:nameid-format:transient"}}selected{{end}}>Transient</option>
@@ -56,19 +54,17 @@
     <fieldset>
         <legend>XML Signature Wrapping (XSW)</legend>
         <small>Wraps or duplicates the signed assertion to exploit SP signature validation flaws.</small>
-        <label>XSW Variant
-            <select name="xsw_variant" id="xsw_variant">
-                <option value="" {{if eq .Config.XSWVariant ""}}selected{{end}}>-- Disabled --</option>
-                <option value="xsw1" {{if eq .Config.XSWVariant "xsw1"}}selected{{end}}>XSW1 - Response wrapping (clone in Signature)</option>
-                <option value="xsw2" {{if eq .Config.XSWVariant "xsw2"}}selected{{end}}>XSW2 - Response wrapping (clone before Signature)</option>
-                <option value="xsw3" {{if eq .Config.XSWVariant "xsw3"}}selected{{end}}>XSW3 - Evil Assertion before original</option>
-                <option value="xsw4" {{if eq .Config.XSWVariant "xsw4"}}selected{{end}}>XSW4 - Original nested inside evil</option>
-                <option value="xsw5" {{if eq .Config.XSWVariant "xsw5"}}selected{{end}}>XSW5 - Tamper signed, append unsigned copy</option>
-                <option value="xsw6" {{if eq .Config.XSWVariant "xsw6"}}selected{{end}}>XSW6 - Tamper signed, copy in Signature</option>
-                <option value="xsw7" {{if eq .Config.XSWVariant "xsw7"}}selected{{end}}>XSW7 - Evil in Extensions element</option>
-                <option value="xsw8" {{if eq .Config.XSWVariant "xsw8"}}selected{{end}}>XSW8 - Original in ds:Object</option>
-            </select>
-        </label>
+        <select name="xsw_variant" id="xsw_variant">
+            <option value="" {{if eq .Config.XSWVariant ""}}selected{{end}}>— Off —</option>
+            <option value="xsw1" {{if eq .Config.XSWVariant "xsw1"}}selected{{end}}>XSW1 - Response wrapping (clone in Signature)</option>
+            <option value="xsw2" {{if eq .Config.XSWVariant "xsw2"}}selected{{end}}>XSW2 - Response wrapping (clone before Signature)</option>
+            <option value="xsw3" {{if eq .Config.XSWVariant "xsw3"}}selected{{end}}>XSW3 - Evil Assertion before original</option>
+            <option value="xsw4" {{if eq .Config.XSWVariant "xsw4"}}selected{{end}}>XSW4 - Original nested inside evil</option>
+            <option value="xsw5" {{if eq .Config.XSWVariant "xsw5"}}selected{{end}}>XSW5 - Tamper signed, append unsigned copy</option>
+            <option value="xsw6" {{if eq .Config.XSWVariant "xsw6"}}selected{{end}}>XSW6 - Tamper signed, copy in Signature</option>
+            <option value="xsw7" {{if eq .Config.XSWVariant "xsw7"}}selected{{end}}>XSW7 - Evil in Extensions element</option>
+            <option value="xsw8" {{if eq .Config.XSWVariant "xsw8"}}selected{{end}}>XSW8 - Original in ds:Object</option>
+        </select>
         <div id="xsw_fields" style="display:none;">
             <label>Evil NameID
                 <input type="text" name="xsw_nameid" value="{{.Config.XSWNameID}}" placeholder="NameID for the tampered/evil assertion">
@@ -138,6 +134,14 @@
         <button type="button" class="secondary outline" onclick="addAttributeRow('inject-attrs')">+ Add Attribute</button>
     </fieldset>
 
-    <button type="submit">Save Configuration</button>
+    <div class="tamper-actions">
+        <button type="submit" class="inline-submit">Save Configuration</button>
+        <button type="button" class="secondary outline inline-submit"
+                hx-post="/ui/tamper/preview"
+                hx-include="closest form"
+                hx-target="#tamper-preview-slot"
+                hx-swap="innerHTML">Preview</button>
+    </div>
 </form>
+<div id="tamper-preview-slot"></div>
 {{end}}

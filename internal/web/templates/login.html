@@ -11,6 +11,8 @@
         main { width: 100%; max-width: 400px; padding: 2rem; }
         h1 { text-align: center; font-size: 1.6rem; margin-bottom: 1.5rem; color: #e6edf3; }
         .toast { padding: 0.5rem 0.75rem; border-radius: 4px; margin-bottom: 1rem; background: #641220; color: #ffc2c2; border: 1px solid #a4161a; }
+        .sp-context { margin-bottom: 1rem; font-size: 0.85rem; color: #8b949e; text-align: center; }
+        .sp-context code { background: #161b22; padding: 0.1rem 0.35rem; border-radius: 3px; color: #e6edf3; word-break: break-all; }
         button, input { padding: 0.5rem 0.75rem; font-size: 0.9rem; }
     </style>
 </head>
@@ -18,6 +20,7 @@
     <main>
         <h1>Plasmid IdP</h1>
         {{if .Toast}}<div class="toast">{{.Toast}}</div>{{end}}
+        {{with samlRequestIssuer .SAMLRequest}}<p class="sp-context">Signing in to <code>{{.}}</code></p>{{end}}
         <form method="post" action="{{.URL}}">
             <label>Username
                 <input type="text" name="user" placeholder="Username" required autofocus>

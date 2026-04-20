@@ -103,6 +103,45 @@ func (h *WebHandler) handleUserCreate(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (h *WebHandler) handleUserPasswordReset(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	password := strings.TrimSpace(r.Header.Get("HX-Prompt"))
+	if password == "" {
+		http.Error(w, "New password is required", http.StatusBadRequest)
+		return
+	}
+
+	var u samlidp.User
+	if err := h.store.Get("/users/"+name, &u); err != nil {
+		http.Error(w, "User not found", http.StatusNotFound)
+		return
+	}
+
+	hashed, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		h.logger.Error("failed to hash password", "error", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	u.PlaintextPassword = &password
+	u.HashedPassword = hashed
+	if err := h.store.Put("/users/"+name, &u); err != nil {
+		h.logger.Error("failed to save user", "error", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	h.renderPartial(w, "user_row", userView{
+		Name:      u.Name,
+		Password:  password,
+		Email:     u.Email,
+		GivenName: u.GivenName,
+		Surname:   u.Surname,
+		Groups:    u.Groups,
+	})
+}
+
 func (h *WebHandler) handleUserDelete(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	if err := h.store.Delete("/users/" + name); err != nil {

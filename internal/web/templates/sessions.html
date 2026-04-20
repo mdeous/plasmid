@@ -5,13 +5,21 @@
 <table>
     <thead>
         <tr>
-            <th>Session ID</th>
+            <th>Session</th>
+            <th>Username</th>
+            <th>NameID</th>
+            <th>Created</th>
+            <th>Expires</th>
             <th>Actions</th>
         </tr>
     </thead>
     <tbody id="session-table-body" hx-get="/ui/sessions/list" hx-trigger="every 5s" hx-swap="innerHTML">
+        {{if .Sessions}}
         {{range .Sessions}}
         {{template "session_row" .}}
+        {{end}}
+        {{else}}
+        <tr class="empty-state-row"><td colspan="6">No active sessions. They appear here after a successful SAML login.</td></tr>
         {{end}}
     </tbody>
 </table>

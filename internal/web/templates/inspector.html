@@ -1,9 +1,22 @@
 {{define "title"}}SAML Inspector{{end}}
 {{define "content"}}
-<h1>SAML Inspector</h1>
-<p>SAML request/response inspection will appear here once configured.</p>
+<div class="page-header">
+    <h1>SAML Inspector</h1>
+    <div class="page-actions">
+        <button class="outline secondary" hx-post="/ui/inspector/clear" hx-confirm="Clear all captured exchanges?" hx-target="body" hx-swap="none" hx-on::after-request="if(event.detail.successful) window.location.reload()">Clear captures</button>
+    </div>
+</div>
 
-<div hx-get="/ui/inspector/exchanges" hx-trigger="every 2s" hx-swap="innerHTML">
+<div id="inspector-filters" class="inspector-filters">
+    <select id="filter-direction" onchange="applyInspectorFilters()">
+        <option value="">All</option>
+        <option value="Request">Requests</option>
+        <option value="Response">Responses</option>
+    </select>
+    <input type="text" id="filter-text" placeholder="Filter by SP, NameID, endpoint…" oninput="applyInspectorFilters()">
+</div>
+
+<div hx-get="/ui/inspector/exchanges" hx-trigger="every 2s" hx-swap="innerHTML" hx-on::after-swap="applyInspectorFilters()">
     {{if .Exchanges}}
     <table>
         <thead>
@@ -20,7 +33,7 @@
         </thead>
         <tbody>
             {{range .Exchanges}}
-            <tr>
+            <tr class="inspector-row" data-direction="{{.Direction}}" data-sp="{{lower .ServiceProvider}}" data-nameid="{{lower .NameID}}" data-endpoint="{{lower .Endpoint}}">
                 <td>{{.Timestamp}}</td>
                 <td>{{.Direction}}</td>
                 <td><code>{{.Endpoint}}</code></td>
@@ -34,11 +47,12 @@
         </tbody>
     </table>
     {{else}}
-    <p>No SAML exchanges captured yet. Trigger a SAML flow to see traffic here.</p>
+    <p class="empty-state">No SAML exchanges captured yet. Trigger a flow via a <a href="/ui/shortcuts">login shortcut</a> or SP-initiated SSO to see traffic here.</p>
     {{end}}
 </div>
 
 <hr>
 <div id="exchange-detail">
+    {{if .OpenExchange}}{{template "inspector_detail" .OpenExchange}}{{end}}
 </div>
 {{end}}

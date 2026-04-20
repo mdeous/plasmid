@@ -1,6 +1,10 @@
 package web
 
-import "net/http"
+import (
+	"net/http"
+
+	internalsml "github.com/mdeous/plasmid/internal/saml"
+)
 
 func (h *WebHandler) SetMetadataXML(xml string) {
 	h.metadataXML = xml
@@ -17,6 +21,16 @@ func (h *WebHandler) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	sessions := h.listKeys("/sessions/")
 	shortcuts := h.listKeys("/shortcuts/")
 
+	var recent []internalsml.SAMLExchange
+	if h.inspector != nil {
+		all := h.inspector.List()
+		if len(all) > 5 {
+			recent = all[:5]
+		} else {
+			recent = all
+		}
+	}
+
 	h.renderPage(w, "dashboard", map[string]any{
 		"Active":        "dashboard",
 		"UserCount":     len(users),
@@ -25,6 +39,7 @@ func (h *WebHandler) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		"ShortcutCount": len(shortcuts),
 		"BaseURL":       h.baseURL,
 		"MetadataXML":   h.metadataXML,
+		"RecentActivity": recent,
 	})
 }
 

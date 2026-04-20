@@ -61,6 +61,50 @@ func (h *WebHandler) handleShortcutCreate(w http.ResponseWriter, r *http.Request
 	})
 }
 
+func (h *WebHandler) handleShortcutRename(w http.ResponseWriter, r *http.Request) {
+	oldName := r.PathValue("name")
+	newName := strings.TrimSpace(r.Header.Get("HX-Prompt"))
+	if newName == "" {
+		http.Error(w, "New name is required", http.StatusBadRequest)
+		return
+	}
+	if newName == oldName {
+		http.Error(w, "New name is identical to the current name", http.StatusBadRequest)
+		return
+	}
+
+	var s samlidp.Shortcut
+	if err := h.store.Get("/shortcuts/"+oldName, &s); err != nil {
+		http.Error(w, "Shortcut not found", http.StatusNotFound)
+		return
+	}
+
+	if existing, err := h.store.List("/shortcuts/"); err == nil {
+		for _, n := range existing {
+			if n == newName {
+				http.Error(w, "A shortcut with that name already exists", http.StatusConflict)
+				return
+			}
+		}
+	}
+
+	s.Name = newName
+	if err := h.store.Put("/shortcuts/"+newName, &s); err != nil {
+		h.logger.Error("failed to save renamed shortcut", "error", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+	if err := h.store.Delete("/shortcuts/" + oldName); err != nil {
+		h.logger.Error("failed to delete old shortcut name", "error", err)
+		// Best effort — new one is already saved.
+	}
+
+	h.renderPartial(w, "shortcut_row", shortcutView{
+		Name:     newName,
+		LoginURL: fmt.Sprintf("%s/login/%s", h.baseURL, newName),
+	})
+}
+
 func (h *WebHandler) handleShortcutDelete(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	if err := h.store.Delete("/shortcuts/" + name); err != nil {

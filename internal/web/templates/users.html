@@ -4,7 +4,7 @@
 
 <details>
     <summary role="button" class="secondary">Add User</summary>
-    <form hx-post="/ui/users" hx-target="#user-table-body" hx-swap="beforeend" hx-on::after-request="if(event.detail.successful) this.reset()">
+    <form hx-post="/ui/users" hx-target="#user-table-body" hx-swap="beforeend" hx-on::after-request="if(event.detail.successful) { this.reset(); var es = document.querySelector('#user-table-body .empty-state-row'); if (es) es.remove(); }">
         <div class="grid">
             <label>Username <input type="text" name="username" required></label>
             <label>Password <input type="password" name="password" required></label>
@@ -15,7 +15,7 @@
             <label>Last Name <input type="text" name="surname"></label>
             <label>Groups <input type="text" name="groups" placeholder="comma-separated"></label>
         </div>
-        <button type="submit">Create User</button>
+        <div><button type="submit" class="inline-submit">Create User</button></div>
     </form>
 </details>
 
@@ -31,8 +31,12 @@
         </tr>
     </thead>
     <tbody id="user-table-body">
+        {{if .Users}}
         {{range .Users}}
         {{template "user_row" .}}
+        {{end}}
+        {{else}}
+        <tr class="empty-state-row"><td colspan="6">No users yet. Add one above to enable SAML logins.</td></tr>
         {{end}}
     </tbody>
 </table>

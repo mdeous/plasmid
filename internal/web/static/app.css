@@ -230,3 +230,300 @@ td code {
     color: #e6edf3;
     border-color: #8b949e;
 }
+
+/* Page header with title + action buttons */
+.page-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.page-header h1 { margin: 0; }
+
+.page-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.page-actions button,
+.page-actions a[role="button"] {
+    padding: 0.3rem 0.7rem;
+    font-size: 0.85rem;
+    margin: 0;
+}
+
+/* Inspector filter bar */
+.inspector-filters {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    margin-bottom: 0.75rem;
+}
+
+.inspector-filters select,
+.inspector-filters input[type="text"] {
+    margin: 0;
+    height: 2.75rem;
+    box-sizing: border-box;
+    line-height: 1.25;
+}
+
+.inspector-filters select { max-width: 180px; }
+.inspector-filters input[type="text"] { flex: 1; }
+
+/* Empty state text in tables and lists */
+.empty-state {
+    color: #8b949e;
+    font-style: italic;
+    text-align: center;
+    padding: 1.5rem 0;
+}
+
+tr.empty-state-row td {
+    text-align: center;
+    color: #8b949e;
+    font-style: italic;
+    padding: 1.5rem 0;
+}
+
+/* XML toolbar sits above .xml-display */
+.xml-toolbar {
+    display: flex;
+    gap: 0.35rem;
+    margin-bottom: 0.3rem;
+}
+
+.xml-toolbar button {
+    padding: 0.2rem 0.6rem;
+    font-size: 0.75rem;
+    margin: 0;
+}
+
+.xml-display.xml-nowrap {
+    white-space: pre;
+    word-wrap: normal;
+}
+
+.xml-display.xml-fold-sig .xml-signature {
+    display: none;
+}
+
+.xml-display.xml-fold-sig .xml-signature-placeholder {
+    display: inline;
+}
+
+.xml-signature-placeholder { display: none; color: #8b949e; font-style: italic; }
+
+/* Password cell with reveal/copy controls */
+.password-cell {
+    white-space: nowrap;
+}
+
+.password-cell code.password-value {
+    display: inline-block;
+    min-width: 5.5rem;
+    vertical-align: middle;
+}
+
+.password-cell .copy-btn { margin-left: 0.25rem; }
+
+/* Confirm dialog (delete confirmation) */
+#confirm-dialog {
+    border: 1px solid var(--pico-muted-border-color);
+    border-radius: var(--pico-border-radius);
+    background: var(--pico-card-background-color);
+    color: var(--pico-color);
+    padding: 0;
+    max-width: 420px;
+    width: 90%;
+}
+
+#confirm-dialog::backdrop {
+    background: rgba(0, 0, 0, 0.6);
+}
+
+#confirm-dialog article {
+    margin: 0;
+    padding: 1rem 1.25rem;
+}
+
+#confirm-dialog h3 { margin-top: 0; }
+
+#confirm-dialog footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    margin-top: 1rem;
+    padding: 0;
+    border: none;
+    background: transparent;
+}
+
+#confirm-dialog footer button {
+    width: auto;
+    margin: 0;
+}
+
+#confirm-dialog-ok {
+    background: #a4161a;
+    border-color: #a4161a;
+    color: #fff;
+}
+
+#confirm-dialog-ok:hover {
+    background: #c62027;
+    border-color: #c62027;
+}
+
+/* Toast notifications (htmx errors) */
+#toast-region {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    pointer-events: none;
+    max-width: 420px;
+}
+
+.toast {
+    pointer-events: auto;
+    padding: 0.6rem 2.25rem 0.6rem 0.9rem;
+    border-radius: var(--pico-border-radius);
+    font-size: 0.9rem;
+    position: relative;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+    opacity: 1;
+    transition: opacity 0.3s ease-out, transform 0.3s ease-out;
+}
+
+.toast-leaving {
+    opacity: 0;
+    transform: translateX(1rem);
+}
+
+.toast-error {
+    background: #641220;
+    color: #ffc2c2;
+    border: 1px solid #a4161a;
+}
+
+.toast-success {
+    background: #1b4332;
+    color: #b7e4c7;
+    border: 1px solid #2d6a4f;
+}
+
+.toast-close {
+    position: absolute;
+    top: 0.25rem;
+    right: 0.5rem;
+    background: transparent;
+    border: none;
+    color: inherit;
+    font-size: 1.1rem;
+    line-height: 1;
+    padding: 0.15rem 0.35rem;
+    margin: 0;
+    width: auto;
+    cursor: pointer;
+}
+
+.toast-close:hover { opacity: 0.7; }
+
+/* Form submit buttons that should size to content, not full-width */
+.inline-submit {
+    width: auto;
+    display: inline-block;
+    margin: 0;
+}
+
+/* Tamper active-config banner */
+.tamper-banner {
+    position: sticky;
+    top: 51px;
+    z-index: 9;
+    background: #641220;
+    color: #ffc2c2;
+    border-bottom: 1px solid #a4161a;
+    padding: 0.5rem 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    font-size: 0.9rem;
+}
+
+.tamper-banner strong { color: #fff; }
+
+.tamper-banner form { margin: 0; }
+
+.tamper-banner button {
+    background: transparent;
+    border: 1px solid #ffc2c2;
+    color: #ffc2c2;
+    padding: 0.2rem 0.6rem;
+    font-size: 0.8rem;
+    margin: 0;
+}
+
+.tamper-banner button:hover {
+    background: #ffc2c2;
+    color: #641220;
+}
+
+/* Session detail columns */
+td.session-id {
+    font-family: var(--pico-font-family-monospace);
+    font-size: 0.8rem;
+}
+
+td.session-id .mono-short {
+    cursor: help;
+    border-bottom: 1px dotted #8b949e;
+}
+
+/* Tamper preview diff */
+.tamper-preview {
+    margin-top: 1.5rem;
+    padding: 1rem;
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: var(--pico-border-radius);
+}
+
+.tamper-preview h3 { margin-top: 0; }
+
+.tamper-preview .preview-warning {
+    color: #ffd666;
+    background: #3d2d00;
+    border: 1px solid #7a5c00;
+    padding: 0.4rem 0.7rem;
+    border-radius: var(--pico-border-radius);
+    margin-bottom: 0.75rem;
+    font-size: 0.85rem;
+}
+
+.tamper-preview .preview-columns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+}
+
+.tamper-preview .preview-column h4 {
+    margin: 0 0 0.3rem 0;
+    color: #8b949e;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.tamper-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}

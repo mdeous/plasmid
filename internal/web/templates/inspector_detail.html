@@ -42,5 +42,9 @@
 </table>
 {{end}}
 <h4>Raw XML</h4>
-<pre class="xml-display">{{.RawXML}}</pre>
+<div class="xml-toolbar">
+    <button type="button" class="outline secondary" onclick="copyXML(this, 'xml-display-body')">Copy</button>
+    <button type="button" class="outline secondary" onclick="toggleXMLWrap(this, 'xml-display-body')">No-wrap</button>
+</div>
+<pre id="xml-display-body" class="xml-display">{{if .PrettyXML}}{{.PrettyXML}}{{else}}{{.RawXML}}{{end}}</pre>
 {{end}}

@@ -4,6 +4,9 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"embed"
+	"encoding/base64"
+	"encoding/pem"
+	"encoding/xml"
 	"fmt"
 	"html/template"
 	"io/fs"
@@ -43,13 +46,18 @@ type WebHandler struct {
 	tamperConfig *internalsml.TamperConfig
 }
 
+var templateFuncs = template.FuncMap{
+	"lower": strings.ToLower,
+}
+
 func NewWebHandler(store samlidp.Store, idpServer *samlidp.Server, logger *slog.Logger, baseURL string, cert *x509.Certificate) (*WebHandler, error) {
-	base, err := template.ParseFS(templateFS,
+	base, err := template.New("").Funcs(templateFuncs).ParseFS(templateFS,
 		"templates/layout.html",
 		"templates/user_row.html",
 		"templates/service_row.html",
 		"templates/session_row.html",
 		"templates/shortcut_row.html",
+		"templates/inspector_detail.html",
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse base templates: %v", err)
@@ -76,7 +84,7 @@ func NewWebHandler(store samlidp.Store, idpServer *samlidp.Server, logger *slog.
 		pages[name] = t
 	}
 
-	partials, err := template.ParseFS(templateFS,
+	partials, err := template.New("").Funcs(templateFuncs).ParseFS(templateFS,
 		"templates/user_row.html",
 		"templates/service_row.html",
 		"templates/session_row.html",
@@ -109,6 +117,7 @@ func (h *WebHandler) RegisterRoutes(mux *http.ServeMux) {
 
 	mux.HandleFunc("GET /ui/users", h.handleUsers)
 	mux.HandleFunc("POST /ui/users", h.handleUserCreate)
+	mux.HandleFunc("POST /ui/users/{name}/password", h.handleUserPasswordReset)
 	mux.HandleFunc("DELETE /ui/users/{name}", h.handleUserDelete)
 
 	mux.HandleFunc("GET /ui/services", h.handleServices)
@@ -121,9 +130,22 @@ func (h *WebHandler) RegisterRoutes(mux *http.ServeMux) {
 
 	mux.HandleFunc("GET /ui/shortcuts", h.handleShortcuts)
 	mux.HandleFunc("POST /ui/shortcuts", h.handleShortcutCreate)
+	mux.HandleFunc("POST /ui/shortcuts/{name}/rename", h.handleShortcutRename)
 	mux.HandleFunc("DELETE /ui/shortcuts/{name}", h.handleShortcutDelete)
 
 	mux.HandleFunc("GET /ui/settings", h.handleSettings)
+
+	mux.HandleFunc("GET /metadata/cert.pem", h.handleCertPEM)
+}
+
+func (h *WebHandler) handleCertPEM(w http.ResponseWriter, r *http.Request) {
+	if h.cert == nil {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Content-Type", "application/x-pem-file")
+	w.Header().Set("Content-Disposition", `attachment; filename="plasmid-idp.pem"`)
+	_ = pem.Encode(w, &pem.Block{Type: "CERTIFICATE", Bytes: h.cert.Raw})
 }
 
 func (h *WebHandler) renderPage(w http.ResponseWriter, name string, data map[string]any) {
@@ -132,6 +154,9 @@ func (h *WebHandler) renderPage(w http.ResponseWriter, name string, data map[str
 	}
 	if _, ok := data["Active"]; !ok {
 		data["Active"] = ""
+	}
+	if _, ok := data["TamperBanner"]; !ok {
+		data["TamperBanner"] = h.tamperBannerSummary()
 	}
 	t, ok := h.pages[name]
 	if !ok {
@@ -181,5 +206,26 @@ func (h *WebHandler) listKeys(prefix string) []string {
 }
 
 func LoginFormTemplate() (*template.Template, error) {
-	return template.ParseFS(templateFS, "templates/login.html")
+	return template.New("login.html").Funcs(template.FuncMap{
+		"samlRequestIssuer": samlRequestIssuer,
+	}).ParseFS(templateFS, "templates/login.html")
+}
+
+// samlRequestIssuer decodes a POST-binding SAMLRequest (plain base64 XML) and
+// returns the Issuer element text, or "" if decoding/parsing fails.
+func samlRequestIssuer(b64 string) string {
+	if b64 == "" {
+		return ""
+	}
+	raw, err := base64.StdEncoding.DecodeString(b64)
+	if err != nil {
+		return ""
+	}
+	var req struct {
+		Issuer string `xml:"Issuer"`
+	}
+	if err := xml.Unmarshal(raw, &req); err != nil {
+		return ""
+	}
+	return strings.TrimSpace(req.Issuer)
 }

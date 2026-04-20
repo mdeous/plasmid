@@ -25,8 +25,27 @@
             <li><a href="/ui/settings" {{if eq .Active "settings"}}aria-current="page"{{end}}>Settings</a></li>
         </ul>
     </nav>
+    {{if .TamperBanner}}
+    <div class="tamper-banner" role="alert">
+        <div>⚠ <strong>Tampering ON</strong> · {{.TamperBanner}} · <a href="/ui/tamper" style="color: inherit;">configure</a></div>
+        <form method="post" action="/ui/tamper/disable">
+            <button type="submit">Disable tampering</button>
+        </form>
+    </div>
+    {{end}}
     <main class="container">
         {{block "content" .}}{{end}}
     </main>
+    <div id="toast-region" aria-live="polite" aria-atomic="true"></div>
+    <dialog id="confirm-dialog">
+        <article>
+            <h3>Confirm</h3>
+            <p id="confirm-dialog-message"></p>
+            <footer>
+                <button type="button" class="secondary outline" id="confirm-dialog-cancel">Cancel</button>
+                <button type="button" id="confirm-dialog-ok">Delete</button>
+            </footer>
+        </article>
+    </dialog>
 </body>
 </html>{{end}}

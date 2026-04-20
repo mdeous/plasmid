@@ -7,7 +7,13 @@
     <table>
         <tr><th>Base URL</th><td><code>{{.BaseURL}}</code></td></tr>
         <tr><th>Listen Address</th><td><code>{{.Host}}:{{.Port}}</code></td></tr>
-        <tr><th>Metadata URL</th><td><a href="/metadata"><code>{{.BaseURL}}/metadata</code></a></td></tr>
+        <tr>
+            <th>Metadata URL</th>
+            <td>
+                <a href="/metadata"><code id="metadata-url-value">{{.BaseURL}}/metadata</code></a>
+                <button type="button" class="copy-btn" onclick="copyToClipboard(document.getElementById('metadata-url-value').textContent, this)">Copy</button>
+            </td>
+        </tr>
     </table>
 </section>
 
@@ -19,17 +25,36 @@
         <tr><th>Not Before</th><td>{{.CertInfo.NotBefore}}</td></tr>
         <tr><th>Not After</th><td>{{.CertInfo.NotAfter}}</td></tr>
         <tr><th>Serial</th><td><code>{{.CertInfo.SerialNumber}}</code></td></tr>
-        <tr><th>SHA-256</th><td><code>{{.CertInfo.Fingerprint}}</code></td></tr>
+        <tr>
+            <th>SHA-256</th>
+            <td>
+                <code id="cert-sha256-value">{{.CertInfo.Fingerprint}}</code>
+                <button type="button" class="copy-btn" onclick="copyToClipboard(document.getElementById('cert-sha256-value').textContent, this)">Copy</button>
+            </td>
+        </tr>
     </table>
 </section>
 {{end}}
 
+{{range .ConfigGroups}}
 <section>
-    <h3>Configuration</h3>
+    <h3>{{.Title}}</h3>
     <table>
-        {{range .Config}}
-        <tr><th>{{.Key}}</th><td><code>{{.Value}}</code></td></tr>
+        {{range .Entries}}
+        <tr>
+            <th>{{.Key}}</th>
+            <td>
+                {{if .Sensitive}}
+                <code class="password-value" data-password="{{.Value}}">••••••••</code>
+                <button type="button" class="copy-btn" onclick="togglePassword(this)">Show</button>
+                <button type="button" class="copy-btn" onclick="copyPassword(this)">Copy</button>
+                {{else}}
+                <code>{{.Value}}</code>
+                {{end}}
+            </td>
+        </tr>
         {{end}}
     </table>
 </section>
+{{end}}
 {{end}}

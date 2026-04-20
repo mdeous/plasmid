@@ -7,6 +7,7 @@
     </td>
     <td>
         <a href="{{.LoginURL}}" target="_blank" role="button" class="outline">Open</a>
+        <button class="secondary outline" hx-post="/ui/shortcuts/{{.Name}}/rename" hx-prompt="New name for shortcut {{.Name}}" hx-target="#shortcut-{{.Name}}" hx-swap="outerHTML">Rename</button>
         <button class="secondary outline" hx-delete="/ui/shortcuts/{{.Name}}" hx-target="#shortcut-{{.Name}}" hx-swap="outerHTML swap:0.3s" hx-confirm="Delete shortcut {{.Name}}?">Delete</button>
     </td>
 </tr>
