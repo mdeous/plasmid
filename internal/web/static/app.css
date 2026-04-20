@@ -1,3 +1,11 @@
+/* Keep base font-size consistent across breakpoints (Pico scales it up to 131.25% on wide screens by default) */
+:host, :root { --pico-font-size: 100%; }
+@media (min-width: 576px)  { :host, :root { --pico-font-size: 100%; } }
+@media (min-width: 768px)  { :host, :root { --pico-font-size: 100%; } }
+@media (min-width: 1024px) { :host, :root { --pico-font-size: 100%; } }
+@media (min-width: 1280px) { :host, :root { --pico-font-size: 100%; } }
+@media (min-width: 1536px) { :host, :root { --pico-font-size: 100%; } }
+
 /* Override Pico dark theme for better contrast */
 [data-theme="dark"] {
     --pico-background-color: #0d1117;
