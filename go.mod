@@ -1,15 +1,15 @@
 module github.com/mdeous/plasmid
 
-go 1.25.0
+go 1.26.0
 
 require (
-	github.com/beevik/etree v1.7.1
+	github.com/beevik/etree v1.8.0
 	github.com/crewjam/saml v0.5.1
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
 	github.com/spf13/viper v1.21.0
-	golang.org/x/crypto v0.55.0
+	golang.org/x/crypto v0.56.0
 )
 
 require (
