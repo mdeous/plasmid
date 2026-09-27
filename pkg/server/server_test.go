@@ -21,10 +21,12 @@ import (
 )
 
 type testEnv struct {
-	plasmid *Plasmid
-	handler http.Handler
-	sp      saml.ServiceProvider
-	store   *samlidp.MemoryStore
+	plasmid   *Plasmid
+	handler   http.Handler
+	sp        saml.ServiceProvider
+	store     *samlidp.MemoryStore
+	tamper    *internalsml.TamperConfig
+	inspector *internalsml.Inspector
 }
 
 func newTestEnv(t *testing.T) *testEnv {
@@ -105,11 +107,75 @@ func newTestEnv(t *testing.T) *testEnv {
 	p.Mux.Handle("/", idpHandler)
 
 	return &testEnv{
-		plasmid: p,
-		handler: p.Mux,
-		sp:      sp,
-		store:   store,
+		plasmid:   p,
+		handler:   p.Mux,
+		sp:        sp,
+		store:     store,
+		tamper:    tamperConfig,
+		inspector: inspector,
 	}
+}
+
+// ssoLogin runs a full SP-initiated login the way a browser does and returns
+// the body of the final POST-binding page.
+func (env *testEnv) ssoLogin(t *testing.T) string {
+	t.Helper()
+
+	authnURL, err := env.sp.MakeRedirectAuthenticationRequest("relaystate")
+	if err != nil {
+		t.Fatalf("MakeRedirectAuthenticationRequest: %v", err)
+	}
+	req := httptest.NewRequest("GET", authnURL.String(), nil)
+	req.URL.Scheme = "https"
+	req.URL.Host = "idp.example.com"
+	w := httptest.NewRecorder()
+	env.handler.ServeHTTP(w, req)
+
+	samlRequest := extractFormValue(w.Body.String(), "SAMLRequest")
+	if samlRequest == "" {
+		t.Fatal("login form missing SAMLRequest hidden field")
+	}
+	relayState := extractFormValue(w.Body.String(), "RelayState")
+
+	form := url.Values{
+		"user":        {"testuser"},
+		"password":    {"testpass"},
+		"SAMLRequest": {samlRequest},
+		"RelayState":  {relayState},
+	}
+	req = httptest.NewRequest("POST", "https://idp.example.com/login", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w = httptest.NewRecorder()
+	env.handler.ServeHTTP(w, req)
+
+	location := w.Header().Get("Location")
+	sessionCookie := cookiesForURL(w.Result().Cookies(), "session")
+	if sessionCookie == nil {
+		t.Fatalf("POST /login: no session cookie set (status %d)", w.Code)
+	}
+
+	req = httptest.NewRequest("GET", "https://idp.example.com"+location, nil)
+	req.AddCookie(sessionCookie)
+	w = httptest.NewRecorder()
+	env.handler.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET %s: expected 200, got %d; body: %s", location, w.Code, w.Body.String())
+	}
+	return w.Body.String()
+}
+
+func decodeSAMLResponse(t *testing.T, body string) string {
+	t.Helper()
+
+	value := extractFormValue(body, "SAMLResponse")
+	if value == "" {
+		t.Fatal("response missing SAMLResponse form value")
+	}
+	raw, err := base64.StdEncoding.DecodeString(value)
+	if err != nil {
+		t.Fatalf("decode SAMLResponse: %v", err)
+	}
+	return string(raw)
 }
 
 func bcryptHash(password string) ([]byte, error) {
@@ -200,26 +266,17 @@ func TestSPInitiatedFlow(t *testing.T) {
 		t.Fatal("POST /login: no session cookie set")
 	}
 
-	// Step 4: Follow the redirect to /sso with session cookie.
-	// The SAMLRequest in the redirect URL is in POST-binding format
-	// (plain base64 of raw XML), so we POST it to /sso as the SAML
-	// library's GET handler expects deflate+base64 (redirect binding).
-	redirectURL, err := url.Parse(location)
-	if err != nil {
-		t.Fatalf("parse redirect location: %v", err)
-	}
-	ssoForm := url.Values{
-		"SAMLRequest": {redirectURL.Query().Get("SAMLRequest")},
-		"RelayState":  {redirectURL.Query().Get("RelayState")},
-	}
-	req = httptest.NewRequest("POST", "https://idp.example.com/sso", strings.NewReader(ssoForm.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	// Step 4: Follow the redirect exactly as a browser would, with a plain
+	// GET on the Location URL carrying the session cookie. The login form
+	// hands us a POST-binding SAMLRequest (plain base64), while GET /sso
+	// decodes the redirect binding, so handleLogin has to recompress it.
+	req = httptest.NewRequest("GET", "https://idp.example.com"+location, nil)
 	req.AddCookie(sessionCookie)
 	w = httptest.NewRecorder()
 	env.handler.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("POST /sso: expected 200, got %d; body: %s", w.Code, w.Body.String())
+		t.Fatalf("GET %s: expected 200, got %d; body: %s", location, w.Code, w.Body.String())
 	}
 	body = w.Body.String()
 	if !strings.Contains(body, `name="SAMLResponse"`) {
@@ -228,6 +285,9 @@ func TestSPInitiatedFlow(t *testing.T) {
 	action := extractFormAction(body)
 	if action != "https://sp.example.com/saml2/acs" {
 		t.Fatalf("SSO response form action: expected SP ACS URL, got %q", action)
+	}
+	if got := extractFormValue(body, "RelayState"); got != "relaystate" {
+		t.Errorf("SSO response RelayState: expected %q, got %q", "relaystate", got)
 	}
 
 	// Step 5: Extract and decode SAMLResponse
@@ -250,6 +310,54 @@ func TestSPInitiatedFlow(t *testing.T) {
 	// encryption certificate. Verify EncryptedAssertion is present.
 	if response.Assertion == nil && response.EncryptedAssertion == nil {
 		t.Fatal("SAMLResponse missing both Assertion and EncryptedAssertion")
+	}
+}
+
+func TestSSOPostBindingAccepted(t *testing.T) {
+	env := newTestEnv(t)
+
+	authnURL, err := env.sp.MakeRedirectAuthenticationRequest("relaystate")
+	if err != nil {
+		t.Fatalf("MakeRedirectAuthenticationRequest: %v", err)
+	}
+	req := httptest.NewRequest("GET", authnURL.String(), nil)
+	req.URL.Scheme = "https"
+	req.URL.Host = "idp.example.com"
+	w := httptest.NewRecorder()
+	env.handler.ServeHTTP(w, req)
+
+	samlRequest := extractFormValue(w.Body.String(), "SAMLRequest")
+	if samlRequest == "" {
+		t.Fatal("login form missing SAMLRequest hidden field")
+	}
+
+	form := url.Values{
+		"user":        {"testuser"},
+		"password":    {"testpass"},
+		"SAMLRequest": {samlRequest},
+	}
+	req = httptest.NewRequest("POST", "https://idp.example.com/login", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w = httptest.NewRecorder()
+	env.handler.ServeHTTP(w, req)
+	sessionCookie := cookiesForURL(w.Result().Cookies(), "session")
+	if sessionCookie == nil {
+		t.Fatal("POST /login: no session cookie set")
+	}
+
+	// POST binding: the SAMLRequest stays plain base64 of the raw XML.
+	ssoForm := url.Values{"SAMLRequest": {samlRequest}}
+	req = httptest.NewRequest("POST", "https://idp.example.com/sso", strings.NewReader(ssoForm.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.AddCookie(sessionCookie)
+	w = httptest.NewRecorder()
+	env.handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("POST /sso: expected 200, got %d; body: %s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), `name="SAMLResponse"`) {
+		t.Fatal("POST /sso: response missing SAMLResponse form field")
 	}
 }
 

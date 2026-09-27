@@ -157,7 +157,15 @@ func (p *Plasmid) handleLogin(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if samlReq := r.PostForm.Get("SAMLRequest"); samlReq != "" {
-		redirectURL := "/sso?SAMLRequest=" + url.QueryEscape(samlReq)
+		// The login form carries the request in POST-binding format (plain
+		// base64 of the raw XML), but GET /sso decodes the redirect binding
+		// (deflate, then base64), so recompress before building the URL.
+		encodedReq, err := deflateBase64(samlReq)
+		if err != nil {
+			p.logger.Error("failed to recompress SAMLRequest for redirect", "error", err)
+			encodedReq = samlReq
+		}
+		redirectURL := "/sso?SAMLRequest=" + url.QueryEscape(encodedReq)
 		if relayState := r.PostForm.Get("RelayState"); relayState != "" {
 			redirectURL += "&RelayState=" + url.QueryEscape(relayState)
 		}
@@ -173,6 +181,28 @@ func (p *Plasmid) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.Redirect(w, r, "/ui/", http.StatusSeeOther)
+}
+
+// deflateBase64 converts a POST-binding SAMLRequest (plain base64 of the raw
+// XML) into the redirect-binding encoding (raw deflate, then base64) that
+// GET /sso expects.
+func deflateBase64(samlRequestB64 string) (string, error) {
+	rawXML, err := base64.StdEncoding.DecodeString(samlRequestB64)
+	if err != nil {
+		return "", fmt.Errorf("failed to decode SAMLRequest: %v", err)
+	}
+	var buf bytes.Buffer
+	writer, err := flate.NewWriter(&buf, flate.DefaultCompression)
+	if err != nil {
+		return "", fmt.Errorf("failed to create flate writer: %v", err)
+	}
+	if _, err := writer.Write(rawXML); err != nil {
+		return "", fmt.Errorf("failed to compress SAMLRequest: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		return "", fmt.Errorf("failed to finalize compressed SAMLRequest: %v", err)
+	}
+	return base64.StdEncoding.EncodeToString(buf.Bytes()), nil
 }
 
 func randomBytes(n int) []byte {
