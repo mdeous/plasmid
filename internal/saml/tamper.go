@@ -39,7 +39,27 @@ type TamperConfig struct {
 	XXECustom        string
 	CommentInjection bool
 	CommentPosition  int
+	SignKeyMode      string
 	lastMods         []TamperModification
+
+	// resigner holds the attacker key material for the signing key attacks.
+	// Set once at startup and never replaced, so it needs no locking of its
+	// own beyond the mutex it keeps internally.
+	resigner *Resigner
+}
+
+// SetResigner attaches the key material used by the signing key attacks. It
+// is called once while the server wires its routes.
+func (tc *TamperConfig) SetResigner(r *Resigner) {
+	tc.mu.Lock()
+	defer tc.mu.Unlock()
+	tc.resigner = r
+}
+
+func (tc *TamperConfig) Resigner() *Resigner {
+	tc.mu.RLock()
+	defer tc.mu.RUnlock()
+	return tc.resigner
 }
 
 func NewTamperConfig() *TamperConfig {
@@ -61,7 +81,7 @@ func (tc *TamperConfig) ShouldRemoveSignature() bool {
 func (tc *TamperConfig) NeedsPostSignTransform() bool {
 	tc.mu.RLock()
 	defer tc.mu.RUnlock()
-	return tc.Enabled && (tc.XSWVariant != "" || tc.XXEEnabled || tc.SignatureMode != "" || tc.CommentInjection)
+	return tc.Enabled && (tc.XSWVariant != "" || tc.XXEEnabled || tc.SignatureMode != "" || tc.CommentInjection || tc.SignKeyMode != "")
 }
 
 // NeedsResponseRewrite reports whether the outgoing response has to be buffered
@@ -70,7 +90,7 @@ func (tc *TamperConfig) NeedsPostSignTransform() bool {
 func (tc *TamperConfig) NeedsResponseRewrite() bool {
 	tc.mu.RLock()
 	defer tc.mu.RUnlock()
-	postSign := tc.XSWVariant != "" || tc.XXEEnabled || tc.SignatureMode != "" || tc.CommentInjection
+	postSign := tc.XSWVariant != "" || tc.XXEEnabled || tc.SignatureMode != "" || tc.CommentInjection || tc.SignKeyMode != ""
 	return tc.Enabled && (postSign || tc.RelayState != "")
 }
 
@@ -102,6 +122,7 @@ type TamperConfigSnapshot struct {
 	XXECustom        string
 	CommentInjection bool
 	CommentPosition  int
+	SignKeyMode      string
 }
 
 func (tc *TamperConfig) GetConfig() TamperConfigSnapshot {
@@ -127,6 +148,7 @@ func (tc *TamperConfig) GetConfig() TamperConfigSnapshot {
 		XXECustom:        tc.XXECustom,
 		CommentInjection: tc.CommentInjection,
 		CommentPosition:  tc.CommentPosition,
+		SignKeyMode:      tc.SignKeyMode,
 	}
 	copy(snap.InjectAttributes, tc.InjectAttributes)
 	return snap
@@ -152,6 +174,7 @@ type TamperUpdateInput struct {
 	XXECustom        string
 	CommentInjection bool
 	CommentPosition  int
+	SignKeyMode      string
 }
 
 func (tc *TamperConfig) Update(input TamperUpdateInput) {
@@ -176,6 +199,7 @@ func (tc *TamperConfig) Update(input TamperUpdateInput) {
 	tc.XXECustom = input.XXECustom
 	tc.CommentInjection = input.CommentInjection
 	tc.CommentPosition = input.CommentPosition
+	tc.SignKeyMode = input.SignKeyMode
 }
 
 // ResetModifications drops queued modifications. Called at the start of each

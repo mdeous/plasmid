@@ -1,6 +1,7 @@
 package server
 
 import (
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/xml"
 	"html"
@@ -11,9 +12,12 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/beevik/etree"
 	"github.com/crewjam/saml"
 	"github.com/crewjam/saml/samlidp"
+	dsig "github.com/russellhaering/goxmldsig"
 	"golang.org/x/crypto/bcrypt"
 
 	internalsml "github.com/mdeous/plasmid/internal/saml"
@@ -757,5 +761,98 @@ func TestSAMLEndpointsNotOnAdminListener(t *testing.T) {
 		if w.Code != http.StatusNotFound {
 			t.Errorf("GET %s on admin listener: got %d, want 404", path, w.Code)
 		}
+	}
+}
+
+// TestSignKeyAttackEndToEnd runs a real SP-initiated login with a signing key
+// attack enabled. The unit tests in internal/saml sign a hand-built fixture;
+// this one proves the re-signing survives a response the library actually
+// produced, namespaces and all.
+func TestSignKeyAttackEndToEnd(t *testing.T) {
+	env := newTestEnv(t)
+	env.tamper.Update(internalsml.TamperUpdateInput{
+		Enabled:         true,
+		SendUnencrypted: true,
+		SignKeyMode:     internalsml.SignKeyClone,
+	})
+
+	responseXML := decodeSAMLResponse(t, env.ssoLogin(t))
+
+	doc := etree.NewDocument()
+	if err := doc.ReadFromString(responseXML); err != nil {
+		t.Fatalf("parse response: %v", err)
+	}
+	assertion := doc.Root().FindElement("./Assertion")
+	if assertion == nil {
+		t.Fatalf("response has no assertion: %s", responseXML)
+	}
+
+	certEl := assertion.FindElement(".//X509Certificate")
+	if certEl == nil {
+		t.Fatalf("assertion signature has no certificate: %s", responseXML)
+	}
+	raw, err := base64.StdEncoding.DecodeString(strings.Join(strings.Fields(certEl.Text()), ""))
+	if err != nil {
+		t.Fatalf("decode certificate: %v", err)
+	}
+	attackCert, err := x509.ParseCertificate(raw)
+	if err != nil {
+		t.Fatalf("parse certificate: %v", err)
+	}
+
+	realCert := env.plasmid.IDP.IDP.Certificate
+	if attackCert.Equal(realCert) {
+		t.Fatal("response still carries the real IdP certificate")
+	}
+	if attackCert.Subject.String() != realCert.Subject.String() {
+		t.Errorf("clone subject %q does not match the IdP's %q", attackCert.Subject, realCert.Subject)
+	}
+
+	// The signature has to be valid under the attacker certificate, otherwise
+	// the SP rejects it as malformed and the test tells us nothing about
+	// whether it checks which certificate signed.
+	store := dsig.MemoryX509CertificateStore{Roots: []*x509.Certificate{attackCert}}
+	vctx := dsig.NewDefaultValidationContext(&store)
+	vctx.Clock = dsig.NewFakeClockAt(attackCert.NotBefore.Add(time.Hour))
+	vctx.IdAttribute = "ID"
+	if _, err := vctx.Validate(assertion); err != nil {
+		t.Fatalf("re-signed assertion does not verify: %v", err)
+	}
+
+	recorded := false
+	for _, exchange := range env.inspector.List() {
+		for _, mod := range exchange.Modifications {
+			if mod.Field == "Signing Key" {
+				recorded = true
+			}
+		}
+	}
+	if !recorded {
+		t.Error("expected the inspector to record the signing key attack")
+	}
+}
+
+// TestSignKeyAttackSkippedWhenEncrypted mirrors the XSW case: the assertion
+// signature is sealed inside EncryptedAssertion, so the attack cannot run and
+// the operator has to be told rather than left guessing.
+func TestSignKeyAttackSkippedWhenEncrypted(t *testing.T) {
+	env := newTestEnv(t)
+	env.tamper.Update(internalsml.TamperUpdateInput{
+		Enabled:     true,
+		SignKeyMode: internalsml.SignKeyClone,
+	})
+
+	env.ssoLogin(t)
+
+	recorded := false
+	for _, exchange := range env.inspector.List() {
+		for _, mod := range exchange.Modifications {
+			if mod.Field == "Signing Key" && mod.NewValue == internalsml.SkippedEncryptedNote {
+				recorded = true
+			}
+		}
+	}
+	if !recorded {
+		t.Error("expected the inspector to record that the signing key attack was skipped")
 	}
 }

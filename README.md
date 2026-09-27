@@ -51,6 +51,9 @@ It is meant to run with minimal configuration and provide an easy way to test SA
 - SAML inspector for capturing and examining request/response exchanges
 - Assertion tampering for modifying SAML assertions on the fly:
   - Signature manipulation (removal, empty SignatureValue, corrupt DigestValue)
+  - Signing key and certificate attacks (self-signed clone of the IdP certificate,
+    unrelated key, expired or not-yet-valid certificate, rogue certificate in
+    `KeyInfo`, `KeyInfo` removed)
   - XML Signature Wrapping attacks (8 variants)
   - XXE injection (local file read, SSRF, out-of-band exfiltration, custom DOCTYPE)
   - XML comment injection in NameID values

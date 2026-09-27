@@ -76,6 +76,7 @@ func (p *Plasmid) BuildRoutes() (*internalsml.Inspector, *internalsml.TamperConf
 	tamperConfig := internalsml.NewTamperConfig()
 
 	p.IDP.IDP.AssertionMaker = internalsml.TamperableAssertionMaker{Config: tamperConfig}
+	tamperConfig.SetResigner(internalsml.NewResigner(p.cert))
 
 	idpHandler := internalsml.InterceptMiddleware(inspector, tamperConfig, p.logger, p.IDP)
 	ssoHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

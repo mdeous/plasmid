@@ -27,6 +27,24 @@
     </fieldset>
 
     <fieldset>
+        <legend>Signing Key &amp; Certificate (post-sign)</legend>
+        <select name="sign_key_mode">
+            <option value="" {{if eq .Config.SignKeyMode ""}}selected{{end}}>— Off —</option>
+            <option value="clone_dn" {{if eq .Config.SignKeyMode "clone_dn"}}selected{{end}}>Self-signed clone of the IdP certificate</option>
+            <option value="untrusted" {{if eq .Config.SignKeyMode "untrusted"}}selected{{end}}>Unrelated key and certificate</option>
+            <option value="expired" {{if eq .Config.SignKeyMode "expired"}}selected{{end}}>Expired certificate</option>
+            <option value="not_yet_valid" {{if eq .Config.SignKeyMode "not_yet_valid"}}selected{{end}}>Not-yet-valid certificate</option>
+            <option value="rogue_keyinfo" {{if eq .Config.SignKeyMode "rogue_keyinfo"}}selected{{end}}>Rogue certificate in KeyInfo (real signature kept)</option>
+            <option value="strip_keyinfo" {{if eq .Config.SignKeyMode "strip_keyinfo"}}selected{{end}}>Remove KeyInfo</option>
+        </select>
+        <small>
+            Re-signs the response with attacker key material to find out whether the SP
+            checks <em>which</em> certificate signed, or only that <em>a</em> signature verifies.
+            Needs a plaintext assertion — turn on &ldquo;Send assertion unencrypted&rdquo; below.
+        </small>
+    </fieldset>
+
+    <fieldset>
         <legend>Override Values</legend>
         <label>NameID Override
             <input type="text" name="name_id" value="{{.Config.NameID}}" placeholder="Leave empty to keep original">

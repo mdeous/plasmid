@@ -47,6 +47,9 @@ func (h *WebHandler) tamperBannerSummary() string {
 	if cfg.SignatureMode != "" {
 		parts = append(parts, "sig:"+cfg.SignatureMode)
 	}
+	if cfg.SignKeyMode != "" {
+		parts = append(parts, "key:"+cfg.SignKeyMode)
+	}
 	if cfg.NameID != "" {
 		parts = append(parts, "NameID override")
 	}
@@ -174,6 +177,15 @@ func (h *WebHandler) handleReplay(w http.ResponseWriter, r *http.Request) {
 	h.renderPartial(w, "replay_form", exchange)
 }
 
+// signKeyMode drops anything the form did not offer, so a hand-crafted POST
+// cannot push an unknown mode into the config and fail every later response.
+func signKeyMode(value string) string {
+	if value == "" || internalsml.IsSignKeyMode(value) {
+		return value
+	}
+	return ""
+}
+
 func parseTamperForm(r *http.Request) internalsml.TamperUpdateInput {
 	commentPosition, _ := strconv.Atoi(r.FormValue("comment_position"))
 
@@ -212,6 +224,7 @@ func parseTamperForm(r *http.Request) internalsml.TamperUpdateInput {
 		XXECustom:        strings.TrimSpace(r.FormValue("xxe_custom")),
 		CommentInjection: r.FormValue("comment_injection") == "on",
 		CommentPosition:  commentPosition,
+		SignKeyMode:      signKeyMode(r.FormValue("sign_key_mode")),
 	}
 }
 
@@ -282,7 +295,14 @@ func (h *WebHandler) handleTamperPreview(w http.ResponseWriter, r *http.Request)
 	if proposed.XXEEnabled && proposed.XXEType == "custom" && strings.TrimSpace(proposed.XXECustom) == "" {
 		warnings = append(warnings, "XXE type 'custom' requires a DOCTYPE in the custom field.")
 	}
+	if proposed.SignKeyMode != "" && !proposed.SendUnencrypted {
+		warnings = append(warnings, "Signing key attack needs a plaintext assertion: with an encrypted assertion the signature is sealed inside EncryptedAssertion and the attack is skipped. Turn on \"Send assertion unencrypted\".")
+	}
+	if proposed.SignKeyMode != "" && proposed.SignatureMode != "" {
+		warnings = append(warnings, "Signing key attack combined with Signature Manipulation: the signature is replaced first and then stripped or corrupted, which leaves nothing for the SP to check the certificate against.")
+	}
 	if proposed.Enabled && !proposed.RemoveSignature && proposed.SignatureMode == "" &&
+		proposed.SignKeyMode == "" &&
 		proposed.NameID == "" && proposed.NameIDFormat == "" && proposed.Issuer == "" &&
 		proposed.Audience == "" && proposed.RelayState == "" && proposed.XSWVariant == "" &&
 		!proposed.XXEEnabled && !proposed.CommentInjection && !proposed.SendUnencrypted &&

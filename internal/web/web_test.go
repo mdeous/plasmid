@@ -120,6 +120,7 @@ func TestTamperSaveRoundTrip(t *testing.T) {
 		"xsw_variant":      {"xsw3"},
 		"xsw_nameid":       {"evil@example.com"},
 		"relay_state":      {"tampered-relay"},
+		"sign_key_mode":    {"clone_dn"},
 	}
 	req := httptest.NewRequest("POST", "/ui/tamper", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -140,6 +141,9 @@ func TestTamperSaveRoundTrip(t *testing.T) {
 	if got.RelayState != "tampered-relay" {
 		t.Errorf("RelayState not saved: %q", got.RelayState)
 	}
+	if got.SignKeyMode != "clone_dn" {
+		t.Errorf("SignKeyMode not saved: %q", got.SignKeyMode)
+	}
 
 	// Disabling must switch tampering off without discarding the configuration.
 	req = httptest.NewRequest("POST", "/ui/tamper/disable", nil)
@@ -152,5 +156,28 @@ func TestTamperSaveRoundTrip(t *testing.T) {
 	}
 	if !got.SendUnencrypted || got.XSWVariant != "xsw3" {
 		t.Errorf("disable discarded configuration: %+v", got)
+	}
+}
+
+// An unknown signing key mode reaching the config would make every later
+// response fail the transform, so the form parser drops it.
+func TestTamperSaveRejectsUnknownSignKeyMode(t *testing.T) {
+	h, err := NewWebHandler(&samlidp.MemoryStore{}, nil, slog.Default(), "http://127.0.0.1:8000", nil)
+	if err != nil {
+		t.Fatalf("NewWebHandler: %v", err)
+	}
+	config := internalsml.NewTamperConfig()
+	h.SetTamperConfig(config)
+
+	mux := http.NewServeMux()
+	h.RegisterInspectorRoutes(mux)
+
+	form := url.Values{"enabled": {"on"}, "sign_key_mode": {"../../etc/passwd"}}
+	req := httptest.NewRequest("POST", "/ui/tamper", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	mux.ServeHTTP(httptest.NewRecorder(), req)
+
+	if got := config.GetConfig().SignKeyMode; got != "" {
+		t.Errorf("unknown mode was accepted: %q", got)
 	}
 }

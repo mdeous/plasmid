@@ -21,6 +21,8 @@ func TransformSAMLResponse(samlResponseB64 string, config *TamperConfig, logger 
 	xxeCustom := config.XXECustom
 	commentInjection := config.CommentInjection
 	commentPosition := config.CommentPosition
+	signKeyMode := config.SignKeyMode
+	resigner := config.resigner
 	config.mu.RUnlock()
 
 	xmlBytes, err := base64.StdEncoding.DecodeString(samlResponseB64)
@@ -52,6 +54,36 @@ func TransformSAMLResponse(samlResponseB64 string, config *TamperConfig, logger 
 			})
 			commentInjection = false
 		}
+		if signKeyMode != "" {
+			// The assertion signature is sealed inside EncryptedAssertion, so
+			// there is nothing left to re-sign or to swap a KeyInfo on.
+			logger.Warn("skipping signing key attack: assertion is encrypted", "mode", signKeyMode)
+			mods = append(mods, TamperModification{
+				Field:    "Signing Key",
+				OldValue: signKeyMode,
+				NewValue: SkippedEncryptedNote,
+			})
+			signKeyMode = ""
+		}
+	}
+
+	// The signing key attack runs first so that everything after it operates
+	// on the response as the attacker signed it. Running it last would resign
+	// over an XSW wrapper and undo the point of the wrap.
+	if signKeyMode != "" {
+		if resigner == nil {
+			return "", nil, fmt.Errorf("transform: signing key attack requested without key material")
+		}
+		transformed, desc, err := resigner.Apply(xmlBytes, signKeyMode)
+		if err != nil {
+			return "", nil, fmt.Errorf("transform: signing key attack failed: %w", err)
+		}
+		xmlBytes = transformed
+		mods = append(mods, TamperModification{
+			Field:    "Signing Key",
+			OldValue: "idp key",
+			NewValue: desc,
+		})
 	}
 
 	if sigMode != "" {
