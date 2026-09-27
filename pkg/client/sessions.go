@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/crewjam/saml"
 	"net/http"
+	"slices"
 )
 
 type sessionIds struct {
@@ -42,14 +43,7 @@ func (p *PlasmidClient) SessionDel(sessionId string) error {
 	}
 
 	// check if session exists
-	sessionExists := false
-	for _, existingName := range ids.Sessions {
-		if existingName == sessionId {
-			sessionExists = true
-			break
-		}
-	}
-	if !sessionExists {
+	if !slices.Contains(ids.Sessions, sessionId) {
 		return fmt.Errorf("session not found: %s", sessionId)
 	}
 

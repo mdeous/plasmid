@@ -4,6 +4,7 @@ import (
 	"fmt"
 	idp "github.com/crewjam/saml/samlidp"
 	"net/http"
+	"slices"
 )
 
 type shortcutIds struct {
@@ -36,14 +37,7 @@ func (p *PlasmidClient) ShortcutDel(shortcutName string) error {
 	}
 
 	// check if shortcut exists
-	shortcutExists := false
-	for _, existingName := range ids.Shortcuts {
-		if existingName == shortcutName {
-			shortcutExists = true
-			break
-		}
-	}
-	if !shortcutExists {
+	if !slices.Contains(ids.Shortcuts, shortcutName) {
 		return fmt.Errorf("shortcut not found: %s", shortcutName)
 	}
 

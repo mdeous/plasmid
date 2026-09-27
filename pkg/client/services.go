@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"slices"
 	"strings"
 )
 
@@ -69,14 +70,7 @@ func (p *PlasmidClient) ServiceDel(serviceName string) error {
 	}
 
 	// check if service exists
-	serviceExists := false
-	for _, existingName := range ids.Services {
-		if existingName == serviceName {
-			serviceExists = true
-			break
-		}
-	}
-	if !serviceExists {
+	if !slices.Contains(ids.Services, serviceName) {
 		return fmt.Errorf("service not found: %s", serviceName)
 	}
 

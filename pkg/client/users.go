@@ -5,6 +5,7 @@ import (
 	"fmt"
 	idp "github.com/crewjam/saml/samlidp"
 	"net/http"
+	"slices"
 )
 
 type userIds struct {
@@ -55,14 +56,7 @@ func (p *PlasmidClient) UserDel(username string) error {
 	}
 
 	// check if user exists
-	userExists := false
-	for _, existingName := range ids.Users {
-		if existingName == username {
-			userExists = true
-			break
-		}
-	}
-	if !userExists {
+	if !slices.Contains(ids.Users, username) {
 		return fmt.Errorf("user not found: %s", username)
 	}
 
