@@ -5,9 +5,7 @@ import (
 	"slices"
 
 	"github.com/mdeous/plasmid/pkg/client"
-	"github.com/mdeous/plasmid/pkg/config"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 // spDelCmd represents the spGet command
@@ -21,7 +19,7 @@ var spDelCmd = &cobra.Command{
 		sp := args[0]
 
 		// create plasmid client
-		c, err := client.New(viper.GetString(config.BaseUrl))
+		c, err := client.New(clientBaseURL(cmd))
 		handleError(err)
 
 		// check if sp exists

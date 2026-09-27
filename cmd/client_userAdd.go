@@ -16,7 +16,7 @@ var userAddCmd = &cobra.Command{
 	Short:   "Create a new user account",
 	Run: func(cmd *cobra.Command, args []string) {
 		// create plasmid client
-		c, err := client.New(viper.GetString(config.BaseUrl))
+		c, err := client.New(clientBaseURL(cmd))
 		handleError(err)
 
 		// build user object

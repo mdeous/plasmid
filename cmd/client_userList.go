@@ -3,9 +3,7 @@ package cmd
 import (
 	"fmt"
 	"github.com/mdeous/plasmid/pkg/client"
-	"github.com/mdeous/plasmid/pkg/config"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 // userListCmd represents the list command
@@ -15,7 +13,7 @@ var userListCmd = &cobra.Command{
 	Short:   "List user accounts",
 	Run: func(cmd *cobra.Command, args []string) {
 		// create plasmid client
-		c, err := client.New(viper.GetString(config.BaseUrl))
+		c, err := client.New(clientBaseURL(cmd))
 		handleError(err)
 
 		// fetch users list

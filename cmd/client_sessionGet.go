@@ -7,9 +7,7 @@ import (
 	"slices"
 
 	"github.com/mdeous/plasmid/pkg/client"
-	"github.com/mdeous/plasmid/pkg/config"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 // sessionGetCmd represents the sessionGet command
@@ -23,7 +21,7 @@ var sessionGetCmd = &cobra.Command{
 		sessionId := args[0]
 
 		// create plasmid client
-		c, err := client.New(viper.GetString(config.BaseUrl))
+		c, err := client.New(clientBaseURL(cmd))
 		handleError(err)
 
 		// check if session exists

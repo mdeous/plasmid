@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"github.com/mdeous/plasmid/pkg/config"
 	"github.com/spf13/cobra"
 )
 
@@ -13,14 +12,9 @@ var clientCmd = &cobra.Command{
 }
 
 func init() {
-	var f *Flag
 	rootCmd.AddCommand(clientCmd)
-	f = &Flag{
-		Command:     clientCmd,
-		Persistent:  true,
-		Name:        "url",
-		Usage:       "plasmid instance url",
-		ConfigField: config.BaseUrl,
-	}
-	f.BindString()
+	// Not bound to viper: serveCmd already binds its own --url flag to the
+	// base_url key, and viper.BindPFlag keeps only the last binding. Client
+	// subcommands resolve the value through clientBaseURL() instead.
+	clientCmd.PersistentFlags().String("url", "", "plasmid instance url")
 }

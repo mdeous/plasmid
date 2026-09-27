@@ -77,3 +77,13 @@ func handleError(err error) {
 		os.Exit(1)
 	}
 }
+
+// clientBaseURL returns the URL of the Plasmid instance to talk to. An
+// explicit --url flag wins; otherwise the configured base_url is used, which
+// covers the config file, IDP_BASE_URL and the built-in default.
+func clientBaseURL(cmd *cobra.Command) string {
+	if f := cmd.Flags().Lookup("url"); f != nil && f.Changed {
+		return f.Value.String()
+	}
+	return viper.GetString(config.BaseUrl)
+}

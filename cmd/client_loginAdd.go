@@ -3,9 +3,7 @@ package cmd
 import (
 	idp "github.com/crewjam/saml/samlidp"
 	"github.com/mdeous/plasmid/pkg/client"
-	"github.com/mdeous/plasmid/pkg/config"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 // loginAddCmd represents the loginAdd command
@@ -30,7 +28,7 @@ var loginAddCmd = &cobra.Command{
 		handleError(err)
 
 		// create plasmid client
-		c, err := client.New(viper.GetString(config.BaseUrl))
+		c, err := client.New(clientBaseURL(cmd))
 		handleError(err)
 
 		// create new shortcut

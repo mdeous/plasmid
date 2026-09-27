@@ -58,7 +58,7 @@ func init() {
 	f = &Flag{
 		Command:     gencertCmd,
 		Name:        "cert-file",
-		ShortHand:   "c",
+		ShortHand:   "f",
 		Usage:       "certificate output file",
 		ConfigField: config.CertCertificateFile,
 	}

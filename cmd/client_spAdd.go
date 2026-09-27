@@ -18,7 +18,7 @@ var spAddCmd = &cobra.Command{
 		metadataUrl := viper.GetString(config.SPMetadata)
 
 		// create plasmid client
-		c, err := client.New(viper.GetString(config.BaseUrl))
+		c, err := client.New(clientBaseURL(cmd))
 		handleError(err)
 
 		// create service

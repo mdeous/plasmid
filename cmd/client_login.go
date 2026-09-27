@@ -6,10 +6,8 @@ import (
 	"slices"
 
 	"github.com/mdeous/plasmid/pkg/client"
-	"github.com/mdeous/plasmid/pkg/config"
 	"github.com/pkg/browser"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 // loginCmd represents the login command
@@ -27,7 +25,7 @@ var loginCmd = &cobra.Command{
 		handleError(err)
 
 		// create plasmid client
-		c, err := client.New(viper.GetString(config.BaseUrl))
+		c, err := client.New(clientBaseURL(cmd))
 		handleError(err)
 
 		// fetch list of shortcut names
@@ -44,7 +42,7 @@ var loginCmd = &cobra.Command{
 		if relayState != "" {
 			linkPath += "/" + relayState
 		}
-		loginLink := viper.GetString(config.BaseUrl) + linkPath
+		loginLink := clientBaseURL(cmd) + linkPath
 
 		// open link with browser
 		if noBrowser {
