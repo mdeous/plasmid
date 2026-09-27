@@ -32,13 +32,13 @@ func (h *WebHandler) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.renderPage(w, "dashboard", map[string]any{
-		"Active":        "dashboard",
-		"UserCount":     len(users),
-		"ServiceCount":  len(services),
-		"SessionCount":  len(sessions),
-		"ShortcutCount": len(shortcuts),
-		"BaseURL":       h.baseURL,
-		"MetadataXML":   h.metadataXML,
+		"Active":         "dashboard",
+		"UserCount":      len(users),
+		"ServiceCount":   len(services),
+		"SessionCount":   len(sessions),
+		"ShortcutCount":  len(shortcuts),
+		"BaseURL":        h.baseURL,
+		"MetadataXML":    h.metadataXML,
 		"RecentActivity": recent,
 	})
 }
