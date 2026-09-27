@@ -1,14 +1,20 @@
 package server
 
 import (
+	"crypto"
+	"crypto/rsa"
+	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/pem"
 	"encoding/xml"
 	"html"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -687,7 +693,7 @@ func TestRelayStateOverrideIDPInitiated(t *testing.T) {
 	}
 }
 
-// TestAdminSurfaceNotPublic is the point of the two-listener split: the
+// TestAdminSurfaceNotPublic covers what the two-listener split protects: the
 // samlidp REST API and the dashboard authenticate nobody, so they must not be
 // reachable on the listener an SP (or a tunnel) can talk to.
 func TestAdminSurfaceNotPublic(t *testing.T) {
@@ -855,4 +861,172 @@ func TestSignKeyAttackSkippedWhenEncrypted(t *testing.T) {
 	if !recorded {
 		t.Error("expected the inspector to record that the signing key attack was skipped")
 	}
+}
+
+// TestVoidC14NAttackEndToEnd drives a real SP-initiated login with the void
+// canonicalization mode on. The unit tests apply it to a hand-built fixture;
+// this one shows it survives a response the library actually produced,
+// namespaces and all.
+func TestVoidC14NAttackEndToEnd(t *testing.T) {
+	env := newTestEnv(t)
+	env.tamper.Update(internalsml.TamperUpdateInput{
+		Enabled:         true,
+		SendUnencrypted: true,
+		NameID:          "admin@evil.example",
+		ParserDiffMode:  internalsml.ParserDiffVoidC14N,
+	})
+
+	responseXML := decodeSAMLResponse(t, env.ssoLogin(t))
+
+	// A relative namespace URI makes libxml2 refuse to canonicalize the whole
+	// document. It has to be prefixed: libxml2 warns about a relative URI on a
+	// default xmlns, and an SP that checks for parse warnings rejects the
+	// response before reaching the signature.
+	if !strings.Contains(responseXML, `xmlns:plasmid="1"`) {
+		t.Errorf("response carries no relative namespace declaration:\n%s", responseXML)
+	}
+	if strings.Contains(responseXML, `xmlns="1"`) {
+		t.Error("the relative namespace must be prefixed, never a default declaration")
+	}
+
+	doc := etree.NewDocument()
+	if err := doc.ReadFromString(responseXML); err != nil {
+		t.Fatalf("parse response: %v", err)
+	}
+
+	digests := doc.Root().FindElements("//DigestValue")
+	if len(digests) == 0 {
+		t.Fatalf("response has no DigestValue: %s", responseXML)
+	}
+	const emptyStringDigest = "47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU="
+	for _, dv := range digests {
+		if dv.Text() != emptyStringDigest {
+			t.Errorf("DigestValue = %q, want the empty-string hash", dv.Text())
+		}
+	}
+
+	sv := doc.Root().FindElement("//SignatureValue")
+	if sv == nil {
+		t.Fatalf("response has no SignatureValue: %s", responseXML)
+	}
+	sig, err := base64.StdEncoding.DecodeString(strings.Join(strings.Fields(sv.Text()), ""))
+	if err != nil {
+		t.Fatalf("decode SignatureValue: %v", err)
+	}
+	realCert := env.plasmid.IDP.IDP.Certificate
+	pub, ok := realCert.PublicKey.(*rsa.PublicKey)
+	if !ok {
+		t.Fatal("IdP certificate does not carry an RSA key")
+	}
+	sum := sha256.Sum256(nil)
+	if err := rsa.VerifyPKCS1v15(pub, crypto.SHA256, sum[:], sig); err != nil {
+		t.Fatalf("signature does not verify over the empty string: %v", err)
+	}
+
+	// The certificate stays the IdP's own, so an SP rejecting this is rejecting
+	// the canonicalization rather than an untrusted signer.
+	certEl := doc.Root().FindElement("//X509Certificate")
+	if certEl == nil {
+		t.Fatal("response has no certificate in KeyInfo")
+	}
+	raw, err := base64.StdEncoding.DecodeString(strings.Join(strings.Fields(certEl.Text()), ""))
+	if err != nil {
+		t.Fatalf("decode certificate: %v", err)
+	}
+	presented, err := x509.ParseCertificate(raw)
+	if err != nil {
+		t.Fatalf("parse certificate: %v", err)
+	}
+	if !presented.Equal(realCert) {
+		t.Error("void canonicalization must present the real IdP certificate")
+	}
+
+	if nameID := doc.Root().FindElement("//NameID"); nameID == nil || nameID.Text() != "admin@evil.example" {
+		t.Errorf("NameID override did not reach the response: %v", nameID)
+	}
+
+	// Negative control: a verifier that canonicalizes correctly has to reject
+	// this, or the mode says nothing about the SP.
+	assertion := doc.Root().FindElement("./Assertion")
+	if assertion == nil {
+		t.Fatalf("response has no assertion: %s", responseXML)
+	}
+	store := dsig.MemoryX509CertificateStore{Roots: []*x509.Certificate{realCert}}
+	vctx := dsig.NewDefaultValidationContext(&store)
+	vctx.IdAttribute = "ID"
+	if _, err := vctx.Validate(assertion); err == nil {
+		t.Error("a strict verifier accepted the void signature")
+	}
+
+	recorded := false
+	for _, exchange := range env.inspector.List() {
+		for _, mod := range exchange.Modifications {
+			if mod.Field == "Parser Differential" {
+				recorded = true
+			}
+		}
+	}
+	if !recorded {
+		t.Error("expected the inspector to record the parser differential attack")
+	}
+}
+
+// TestVoidC14NSkippedWhenEncrypted mirrors the XSW and signing key cases: the
+// forged claim lives inside the assertion, which is unreachable once the
+// library has encrypted it.
+func TestVoidC14NSkippedWhenEncrypted(t *testing.T) {
+	env := newTestEnv(t)
+	env.tamper.Update(internalsml.TamperUpdateInput{
+		Enabled:        true,
+		ParserDiffMode: internalsml.ParserDiffVoidC14N,
+	})
+
+	env.ssoLogin(t)
+
+	found := false
+	for _, exchange := range env.inspector.List() {
+		for _, mod := range exchange.Modifications {
+			if mod.Field == "Parser Differential" && mod.NewValue == internalsml.SkippedEncryptedNote {
+				found = true
+			}
+		}
+	}
+	if !found {
+		t.Error("expected the skipped-because-encrypted note in the inspector")
+	}
+}
+
+// TestDumpLiveParserDiffPayload writes the response a real SP-initiated login
+// produces, so it can be run against an external validation bench. It is a
+// no-op unless PLASMID_DUMP_DIR is set: only a real implementation can say
+// whether a payload trips its parser.
+func TestDumpLiveParserDiffPayload(t *testing.T) {
+	dir := os.Getenv("PLASMID_DUMP_DIR")
+	if dir == "" {
+		t.Skip("set PLASMID_DUMP_DIR to dump the live payload for the validation bench")
+	}
+	env := newTestEnv(t)
+	env.tamper.Update(internalsml.TamperUpdateInput{
+		Enabled:         true,
+		SendUnencrypted: true,
+		NameID:          "admin@evil.example",
+		ParserDiffMode:  internalsml.ParserDiffVoidC14N,
+	})
+
+	responseXML := decodeSAMLResponse(t, env.ssoLogin(t))
+	path := filepath.Join(dir, "live-void_c14n.xml")
+	if err := os.WriteFile(path, []byte(responseXML), 0o644); err != nil {
+		t.Fatalf("write payload: %v", err)
+	}
+
+	certPath := filepath.Join(dir, "live-idp-cert.pem")
+	pemBytes := pem.EncodeToMemory(&pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: env.plasmid.IDP.IDP.Certificate.Raw,
+	})
+	if err := os.WriteFile(certPath, pemBytes, 0o644); err != nil {
+		t.Fatalf("write cert: %v", err)
+	}
+	t.Logf("wrote %s and %s", path, certPath)
+	t.Logf("ACS=%s entity=%s", env.sp.AcsURL.String(), env.sp.MetadataURL.String())
 }

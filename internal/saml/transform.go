@@ -22,7 +22,9 @@ func TransformSAMLResponse(samlResponseB64 string, config *TamperConfig, logger 
 	commentInjection := config.CommentInjection
 	commentPosition := config.CommentPosition
 	signKeyMode := config.SignKeyMode
+	parserDiffMode := config.ParserDiffMode
 	resigner := config.resigner
+	differ := config.differ
 	config.mu.RUnlock()
 
 	xmlBytes, err := base64.StdEncoding.DecodeString(samlResponseB64)
@@ -65,11 +67,23 @@ func TransformSAMLResponse(samlResponseB64 string, config *TamperConfig, logger 
 			})
 			signKeyMode = ""
 		}
+		if parserDiffMode != "" {
+			// Every parser differential mode rewrites the assertion and the ID
+			// relationships around it, and the forged claim the probe depends on
+			// lives inside the assertion, sealed in EncryptedAssertion.
+			logger.Warn("skipping parser differential attack: assertion is encrypted", "mode", parserDiffMode)
+			mods = append(mods, TamperModification{
+				Field:    "Parser Differential",
+				OldValue: parserDiffMode,
+				NewValue: SkippedEncryptedNote,
+			})
+			parserDiffMode = ""
+		}
 	}
 
 	// The signing key attack runs first so that everything after it operates
 	// on the response as the attacker signed it. Running it last would resign
-	// over an XSW wrapper and undo the point of the wrap.
+	// over an XSW wrapper, covering the wrapper instead of the wrapped element.
 	if signKeyMode != "" {
 		if resigner == nil {
 			return "", nil, fmt.Errorf("transform: signing key attack requested without key material")
@@ -82,6 +96,27 @@ func TransformSAMLResponse(samlResponseB64 string, config *TamperConfig, logger 
 		mods = append(mods, TamperModification{
 			Field:    "Signing Key",
 			OldValue: "idp key",
+			NewValue: desc,
+		})
+	}
+
+	// Parser differentials run after the signing key attack so that the two
+	// compose: the key attack decides which certificate signs, this decides
+	// which element the SP believes was signed. Running it first would let the
+	// resigner recompute the digest over the polluted shape and dissolve the
+	// ID-to-Reference relationship the attack depends on.
+	if parserDiffMode != "" {
+		if differ == nil {
+			return "", nil, fmt.Errorf("transform: parser differential attack requested without key material")
+		}
+		transformed, desc, err := differ.Apply(xmlBytes, parserDiffMode)
+		if err != nil {
+			return "", nil, fmt.Errorf("transform: parser differential attack failed: %w", err)
+		}
+		xmlBytes = transformed
+		mods = append(mods, TamperModification{
+			Field:    "Parser Differential",
+			OldValue: "well-formed response",
 			NewValue: desc,
 		})
 	}
@@ -122,6 +157,20 @@ func TransformSAMLResponse(samlResponseB64 string, config *TamperConfig, logger 
 		})
 	}
 
+	// Both a DOCTYPE-based parser differential and the XXE mode prepend a
+	// DOCTYPE, and a document may carry only one. etree will not catch the
+	// duplicate for us, so drop XXE: the parser differential is the mode the
+	// operator selected as the primary attack and it has already run.
+	if xxeEnabled && ParserDiffUsesDoctype(parserDiffMode) {
+		logger.Warn("skipping XXE: parser differential mode already prepends a DOCTYPE", "mode", parserDiffMode)
+		mods = append(mods, TamperModification{
+			Field:    "XXE",
+			OldValue: xxeType,
+			NewValue: SkippedDoctypeConflictNote,
+		})
+		xxeEnabled = false
+	}
+
 	if xxeEnabled {
 		xmlBytes, err = ApplyXXE(xmlBytes, xxeType, xxeTarget, xxePlacement, xxeCustom)
 		if err != nil {
@@ -141,6 +190,10 @@ func TransformSAMLResponse(samlResponseB64 string, config *TamperConfig, logger 
 // SkippedEncryptedNote explains, in the inspector and the preview pane, why a
 // transform that needs plaintext XML did not run.
 const SkippedEncryptedNote = `skipped - assertion is encrypted (enable "Send assertion unencrypted")`
+
+// SkippedDoctypeConflictNote explains why XXE did not run alongside a
+// DOCTYPE-based parser differential mode.
+const SkippedDoctypeConflictNote = `skipped - the parser differential mode already prepends a DOCTYPE and a document may only have one`
 
 // IsEncryptedAssertion reports whether a SAML response carries its assertion
 // encrypted, in which case the assertion XML cannot be rewritten.

@@ -50,6 +50,9 @@ func (h *WebHandler) tamperBannerSummary() string {
 	if cfg.SignKeyMode != "" {
 		parts = append(parts, "key:"+cfg.SignKeyMode)
 	}
+	if cfg.ParserDiffMode != "" {
+		parts = append(parts, "pdiff:"+cfg.ParserDiffMode)
+	}
 	if cfg.NameID != "" {
 		parts = append(parts, "NameID override")
 	}
@@ -154,8 +157,10 @@ func (h *WebHandler) handleTamper(w http.ResponseWriter, r *http.Request) {
 		config = h.tamperConfig.GetConfig()
 	}
 	h.renderPage(w, "tamper", map[string]any{
-		"Active": "tamper",
-		"Config": config,
+		"Active":          "tamper",
+		"Config":          config,
+		"SignKeyModes":    internalsml.SignKeyModeOptions(),
+		"ParserDiffModes": internalsml.ParserDiffModeOptions(),
 	})
 }
 
@@ -181,6 +186,15 @@ func (h *WebHandler) handleReplay(w http.ResponseWriter, r *http.Request) {
 // cannot push an unknown mode into the config and fail every later response.
 func signKeyMode(value string) string {
 	if value == "" || internalsml.IsSignKeyMode(value) {
+		return value
+	}
+	return ""
+}
+
+// parserDiffMode drops anything the form did not offer. Only validated payloads
+// are offered, so this also keeps an unvalidated mode from being posted by hand.
+func parserDiffMode(value string) string {
+	if value == "" || internalsml.IsParserDiffMode(value) {
 		return value
 	}
 	return ""
@@ -225,6 +239,7 @@ func parseTamperForm(r *http.Request) internalsml.TamperUpdateInput {
 		CommentInjection: r.FormValue("comment_injection") == "on",
 		CommentPosition:  commentPosition,
 		SignKeyMode:      signKeyMode(r.FormValue("sign_key_mode")),
+		ParserDiffMode:   parserDiffMode(r.FormValue("parser_diff_mode")),
 	}
 }
 
@@ -243,29 +258,10 @@ func (h *WebHandler) handleTamperSave(w http.ResponseWriter, r *http.Request) {
 
 func (h *WebHandler) handleTamperDisable(w http.ResponseWriter, r *http.Request) {
 	if h.tamperConfig != nil {
-		cur := h.tamperConfig.GetConfig()
-		cur.Enabled = false
-		h.tamperConfig.Update(internalsml.TamperUpdateInput{
-			Enabled:          false,
-			RemoveSignature:  cur.RemoveSignature,
-			SignatureMode:    cur.SignatureMode,
-			NameID:           cur.NameID,
-			NameIDFormat:     cur.NameIDFormat,
-			Issuer:           cur.Issuer,
-			Audience:         cur.Audience,
-			RelayState:       cur.RelayState,
-			InjectAttributes: cur.InjectAttributes,
-			XSWVariant:       cur.XSWVariant,
-			XSWNameID:        cur.XSWNameID,
-			SendUnencrypted:  cur.SendUnencrypted,
-			XXEEnabled:       cur.XXEEnabled,
-			XXEType:          cur.XXEType,
-			XXETarget:        cur.XXETarget,
-			XXEPlacement:     cur.XXEPlacement,
-			XXECustom:        cur.XXECustom,
-			CommentInjection: cur.CommentInjection,
-			CommentPosition:  cur.CommentPosition,
-		})
+		// Converting the snapshot keeps every setting; only Enabled changes.
+		in := h.tamperConfig.GetConfig().UpdateInput()
+		in.Enabled = false
+		h.tamperConfig.Update(in)
 	}
 	ref := r.Header.Get("Referer")
 	if ref == "" {
@@ -301,8 +297,26 @@ func (h *WebHandler) handleTamperPreview(w http.ResponseWriter, r *http.Request)
 	if proposed.SignKeyMode != "" && proposed.SignatureMode != "" {
 		warnings = append(warnings, "Signing key attack combined with Signature Manipulation: the signature is replaced first and then stripped or corrupted, which leaves nothing for the SP to check the certificate against.")
 	}
+	if proposed.ParserDiffMode != "" && !proposed.SendUnencrypted {
+		warnings = append(warnings, "Parser differential attacks rewrite the assertion and the IDs around it: with an encrypted assertion there is nothing to rewrite and the attack is skipped. Turn on \"Send assertion unencrypted\".")
+	}
+	if proposed.ParserDiffMode != "" && proposed.SignatureMode != "" {
+		warnings = append(warnings, "Parser differential combined with Signature Manipulation: the signature this mode carefully builds is then stripped or corrupted, so the SP never evaluates the differential.")
+	}
+	if proposed.ParserDiffMode != "" && proposed.XSWVariant != "" {
+		warnings = append(warnings, "Parser differential combined with XSW: the wrap re-arranges the structure the differential depends on.")
+	}
+	if proposed.ParserDiffMode == internalsml.ParserDiffVoidC14N && proposed.SignKeyMode != "" {
+		warnings = append(warnings, "Void canonicalization signs with the real IdP key on purpose, so the SP's configured certificate matches and the only thing under test is the canonicalization bug. A signing key attack replaces that signature and muddies the result.")
+	}
+	if proposed.ParserDiffMode == internalsml.ParserDiffVoidC14N && proposed.NameID == "" {
+		warnings = append(warnings, "Void canonicalization on its own changes nothing the SP can report back. Set a NameID override to find out whether it accepts a forged subject.")
+	}
+	if internalsml.ParserDiffUsesDoctype(proposed.ParserDiffMode) && proposed.XXEEnabled {
+		warnings = append(warnings, "This parser differential mode prepends a DOCTYPE and so does XXE. A document may only carry one, so XXE will be skipped.")
+	}
 	if proposed.Enabled && !proposed.RemoveSignature && proposed.SignatureMode == "" &&
-		proposed.SignKeyMode == "" &&
+		proposed.SignKeyMode == "" && proposed.ParserDiffMode == "" &&
 		proposed.NameID == "" && proposed.NameIDFormat == "" && proposed.Issuer == "" &&
 		proposed.Audience == "" && proposed.RelayState == "" && proposed.XSWVariant == "" &&
 		!proposed.XXEEnabled && !proposed.CommentInjection && !proposed.SendUnencrypted &&
@@ -346,7 +360,9 @@ func (h *WebHandler) handleTamperPreview(w http.ResponseWriter, r *http.Request)
 
 	// Build a throwaway TamperConfig with the proposed values and run the
 	// post-sign transform against the captured response.
-	tmp := internalsml.NewTamperConfig()
+	// Carry the live attack key material across, or every key-dependent mode
+	// would preview as a transform failure.
+	tmp := h.tamperConfig.CloneForPreview()
 	tmp.Update(proposed)
 
 	if !tmp.NeedsPostSignTransform() {

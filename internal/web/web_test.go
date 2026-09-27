@@ -1,12 +1,19 @@
 package web
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/base64"
 	"log/slog"
+	"math/big"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/crewjam/saml"
 	"github.com/crewjam/saml/samlidp"
@@ -121,6 +128,7 @@ func TestTamperSaveRoundTrip(t *testing.T) {
 		"xsw_nameid":       {"evil@example.com"},
 		"relay_state":      {"tampered-relay"},
 		"sign_key_mode":    {"clone_dn"},
+		"parser_diff_mode": {"void_c14n"},
 	}
 	req := httptest.NewRequest("POST", "/ui/tamper", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -144,6 +152,9 @@ func TestTamperSaveRoundTrip(t *testing.T) {
 	if got.SignKeyMode != "clone_dn" {
 		t.Errorf("SignKeyMode not saved: %q", got.SignKeyMode)
 	}
+	if got.ParserDiffMode != "void_c14n" {
+		t.Errorf("ParserDiffMode not saved: %q", got.ParserDiffMode)
+	}
 
 	// Disabling must switch tampering off without discarding the configuration.
 	req = httptest.NewRequest("POST", "/ui/tamper/disable", nil)
@@ -156,6 +167,13 @@ func TestTamperSaveRoundTrip(t *testing.T) {
 	}
 	if !got.SendUnencrypted || got.XSWVariant != "xsw3" {
 		t.Errorf("disable discarded configuration: %+v", got)
+	}
+	// Every configured mode has to survive a disable.
+	if got.SignKeyMode != "clone_dn" {
+		t.Errorf("disable discarded SignKeyMode: %q", got.SignKeyMode)
+	}
+	if got.ParserDiffMode != "void_c14n" {
+		t.Errorf("disable discarded ParserDiffMode: %q", got.ParserDiffMode)
 	}
 }
 
@@ -179,5 +197,98 @@ func TestTamperSaveRejectsUnknownSignKeyMode(t *testing.T) {
 
 	if got := config.GetConfig().SignKeyMode; got != "" {
 		t.Errorf("unknown mode was accepted: %q", got)
+	}
+}
+
+// Only validated payloads are offered, so an unvalidated mode posted by hand
+// must be dropped just like an unknown one.
+func TestTamperSaveRejectsUnofferedParserDiffMode(t *testing.T) {
+	h, err := NewWebHandler(&samlidp.MemoryStore{}, nil, slog.Default(), "http://127.0.0.1:8000", nil)
+	if err != nil {
+		t.Fatalf("NewWebHandler: %v", err)
+	}
+	config := internalsml.NewTamperConfig()
+	h.SetTamperConfig(config)
+	mux := http.NewServeMux()
+	h.RegisterInspectorRoutes(mux)
+
+	for _, mode := range []string{"../../etc/passwd", "dtd_attlist", "attr_pollution"} {
+		form := url.Values{"enabled": {"on"}, "parser_diff_mode": {mode}}
+		req := httptest.NewRequest("POST", "/ui/tamper", strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		mux.ServeHTTP(httptest.NewRecorder(), req)
+
+		if got := config.GetConfig().ParserDiffMode; got != "" {
+			t.Errorf("mode %q was accepted: %q", mode, got)
+		}
+	}
+}
+
+// A mode that signs needs key material to render a diff rather than a transform
+// error, so the preview has to carry the live material.
+func TestTamperPreviewHasKeyMaterial(t *testing.T) {
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("generate key: %v", err)
+	}
+	tmpl := &x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject:      pkix.Name{CommonName: "preview-idp"},
+		NotBefore:    time.Now().Add(-time.Hour),
+		NotAfter:     time.Now().AddDate(1, 0, 0),
+	}
+	der, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &key.PublicKey, key)
+	if err != nil {
+		t.Fatalf("create certificate: %v", err)
+	}
+	cert, err := x509.ParseCertificate(der)
+	if err != nil {
+		t.Fatalf("parse certificate: %v", err)
+	}
+
+	h, err := NewWebHandler(&samlidp.MemoryStore{}, nil, slog.Default(), "http://127.0.0.1:8000", cert)
+	if err != nil {
+		t.Fatalf("NewWebHandler: %v", err)
+	}
+	config := internalsml.NewTamperConfig()
+	config.SetParserDiffer(internalsml.NewParserDiffer(key, cert))
+	h.SetTamperConfig(config)
+	inspector := internalsml.NewInspector(10)
+	h.SetInspector(inspector)
+
+	// void_c14n replaces the signature outright, so the captured response only
+	// has to carry an ID and something shaped like a signature.
+	captured := `<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"` +
+		` xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" ID="_resp1">` +
+		`<saml:Issuer>idp</saml:Issuer>` +
+		`<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#"><ds:SignatureValue>AA==</ds:SignatureValue></ds:Signature>` +
+		`<saml:Assertion xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" ID="_a1">` +
+		`<saml:Subject><saml:NameID>alice@example.com</saml:NameID></saml:Subject></saml:Assertion>` +
+		`</samlp:Response>`
+	inspector.Record(internalsml.SAMLExchange{
+		Direction: "Response",
+		RawBase64: base64.StdEncoding.EncodeToString([]byte(captured)),
+	})
+
+	mux := http.NewServeMux()
+	h.RegisterInspectorRoutes(mux)
+
+	form := url.Values{
+		"enabled":          {"on"},
+		"send_unencrypted": {"on"},
+		"parser_diff_mode": {"void_c14n"},
+		"name_id":          {"admin@evil.example"},
+	}
+	req := httptest.NewRequest("POST", "/ui/tamper/preview", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	body := w.Body.String()
+	if strings.Contains(body, "without key material") {
+		t.Error("the preview still lacks the attack key material")
+	}
+	if !strings.Contains(body, "47DEQpj8HBSa") {
+		t.Errorf("the preview does not show the void digest; body:\n%s", body)
 	}
 }

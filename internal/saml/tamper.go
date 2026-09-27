@@ -12,6 +12,31 @@ type TamperAttribute struct {
 	Value string
 }
 
+// ModeOption is an attack mode as the tamper form offers it: the value that
+// gets posted and the label shown. The page ranges over these instead of
+// hardcoding an option list, so a mode added in Go cannot end up unreachable
+// from the UI, and the operator and the inspector name it identically.
+type ModeOption struct {
+	Value string
+	Label string
+}
+
+func modeOptions(order []string, labels map[string]string) []ModeOption {
+	opts := make([]ModeOption, 0, len(order))
+	for _, mode := range order {
+		opts = append(opts, ModeOption{Value: mode, Label: labels[mode]})
+	}
+	return opts
+}
+
+func SignKeyModeOptions() []ModeOption {
+	return modeOptions(SignKeyModes, SignKeyModeLabels)
+}
+
+func ParserDiffModeOptions() []ModeOption {
+	return modeOptions(ParserDiffModes, ParserDiffModeLabels)
+}
+
 type TamperModification struct {
 	Field    string
 	OldValue string
@@ -40,12 +65,17 @@ type TamperConfig struct {
 	CommentInjection bool
 	CommentPosition  int
 	SignKeyMode      string
+	ParserDiffMode   string
 	lastMods         []TamperModification
 
 	// resigner holds the attacker key material for the signing key attacks.
 	// Set once at startup and never replaced, so it needs no locking of its
 	// own beyond the mutex it keeps internally.
 	resigner *Resigner
+
+	// differ holds the real IdP key material for the parser differential
+	// attacks, which have to sign as the IdP rather than as an attacker.
+	differ *ParserDiffer
 }
 
 // SetResigner attaches the key material used by the signing key attacks. It
@@ -62,8 +92,32 @@ func (tc *TamperConfig) Resigner() *Resigner {
 	return tc.resigner
 }
 
+// SetParserDiffer attaches the real IdP key material used by the parser
+// differential attacks. Called once while the server wires its routes.
+func (tc *TamperConfig) SetParserDiffer(p *ParserDiffer) {
+	tc.mu.Lock()
+	defer tc.mu.Unlock()
+	tc.differ = p
+}
+
+func (tc *TamperConfig) ParserDiffer() *ParserDiffer {
+	tc.mu.RLock()
+	defer tc.mu.RUnlock()
+	return tc.differ
+}
+
 func NewTamperConfig() *TamperConfig {
 	return &TamperConfig{}
+}
+
+// CloneForPreview returns an empty config carrying the same attack key material
+// as this one. The tamper preview builds a throwaway config from the pending
+// form values, and without the key material every key-dependent mode would
+// render as a transform failure instead of a diff.
+func (tc *TamperConfig) CloneForPreview() *TamperConfig {
+	tc.mu.RLock()
+	defer tc.mu.RUnlock()
+	return &TamperConfig{resigner: tc.resigner, differ: tc.differ}
 }
 
 func (tc *TamperConfig) IsEnabled() bool {
@@ -81,7 +135,7 @@ func (tc *TamperConfig) ShouldRemoveSignature() bool {
 func (tc *TamperConfig) NeedsPostSignTransform() bool {
 	tc.mu.RLock()
 	defer tc.mu.RUnlock()
-	return tc.Enabled && (tc.XSWVariant != "" || tc.XXEEnabled || tc.SignatureMode != "" || tc.CommentInjection || tc.SignKeyMode != "")
+	return tc.Enabled && (tc.XSWVariant != "" || tc.XXEEnabled || tc.SignatureMode != "" || tc.CommentInjection || tc.SignKeyMode != "" || tc.ParserDiffMode != "")
 }
 
 // NeedsResponseRewrite reports whether the outgoing response has to be buffered
@@ -90,7 +144,7 @@ func (tc *TamperConfig) NeedsPostSignTransform() bool {
 func (tc *TamperConfig) NeedsResponseRewrite() bool {
 	tc.mu.RLock()
 	defer tc.mu.RUnlock()
-	postSign := tc.XSWVariant != "" || tc.XXEEnabled || tc.SignatureMode != "" || tc.CommentInjection || tc.SignKeyMode != ""
+	postSign := tc.XSWVariant != "" || tc.XXEEnabled || tc.SignatureMode != "" || tc.CommentInjection || tc.SignKeyMode != "" || tc.ParserDiffMode != ""
 	return tc.Enabled && (postSign || tc.RelayState != "")
 }
 
@@ -123,6 +177,14 @@ type TamperConfigSnapshot struct {
 	CommentInjection bool
 	CommentPosition  int
 	SignKeyMode      string
+	ParserDiffMode   string
+}
+
+// UpdateInput converts a snapshot back into an update. The two structs hold the
+// same fields in the same order, so a caller that wants to change one setting
+// and keep the rest converts instead of listing every field.
+func (s TamperConfigSnapshot) UpdateInput() TamperUpdateInput {
+	return TamperUpdateInput(s)
 }
 
 func (tc *TamperConfig) GetConfig() TamperConfigSnapshot {
@@ -149,6 +211,7 @@ func (tc *TamperConfig) GetConfig() TamperConfigSnapshot {
 		CommentInjection: tc.CommentInjection,
 		CommentPosition:  tc.CommentPosition,
 		SignKeyMode:      tc.SignKeyMode,
+		ParserDiffMode:   tc.ParserDiffMode,
 	}
 	copy(snap.InjectAttributes, tc.InjectAttributes)
 	return snap
@@ -175,6 +238,7 @@ type TamperUpdateInput struct {
 	CommentInjection bool
 	CommentPosition  int
 	SignKeyMode      string
+	ParserDiffMode   string
 }
 
 func (tc *TamperConfig) Update(input TamperUpdateInput) {
@@ -200,6 +264,7 @@ func (tc *TamperConfig) Update(input TamperUpdateInput) {
 	tc.CommentInjection = input.CommentInjection
 	tc.CommentPosition = input.CommentPosition
 	tc.SignKeyMode = input.SignKeyMode
+	tc.ParserDiffMode = input.ParserDiffMode
 }
 
 // ResetModifications drops queued modifications. Called at the start of each

@@ -81,8 +81,8 @@ func handleError(err error) {
 
 // clientBaseURL returns the URL of the Plasmid instance to talk to. An
 // explicit --url flag wins; otherwise the admin listener is used, which is
-// where the REST API lives. base_url is deliberately not the fallback: it is
-// the public SAML URL, and the admin API is not served there.
+// where the REST API lives. base_url is not a fallback: it addresses the public
+// SAML listener, which does not serve the admin API.
 func clientBaseURL(cmd *cobra.Command) string {
 	if f := cmd.Flags().Lookup("url"); f != nil && f.Changed {
 		return f.Value.String()

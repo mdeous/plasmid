@@ -30,17 +30,33 @@
         <legend>Signing Key &amp; Certificate (post-sign)</legend>
         <select name="sign_key_mode">
             <option value="" {{if eq .Config.SignKeyMode ""}}selected{{end}}>— Off —</option>
-            <option value="clone_dn" {{if eq .Config.SignKeyMode "clone_dn"}}selected{{end}}>Self-signed clone of the IdP certificate</option>
-            <option value="untrusted" {{if eq .Config.SignKeyMode "untrusted"}}selected{{end}}>Unrelated key and certificate</option>
-            <option value="expired" {{if eq .Config.SignKeyMode "expired"}}selected{{end}}>Expired certificate</option>
-            <option value="not_yet_valid" {{if eq .Config.SignKeyMode "not_yet_valid"}}selected{{end}}>Not-yet-valid certificate</option>
-            <option value="rogue_keyinfo" {{if eq .Config.SignKeyMode "rogue_keyinfo"}}selected{{end}}>Rogue certificate in KeyInfo (real signature kept)</option>
-            <option value="strip_keyinfo" {{if eq .Config.SignKeyMode "strip_keyinfo"}}selected{{end}}>Remove KeyInfo</option>
+            {{range .SignKeyModes}}
+            <option value="{{.Value}}" {{if eq $.Config.SignKeyMode .Value}}selected{{end}}>{{.Label}}</option>
+            {{end}}
         </select>
         <small>
             Re-signs the response with attacker key material to find out whether the SP
             checks <em>which</em> certificate signed, or only that <em>a</em> signature verifies.
             Needs a plaintext assertion — turn on &ldquo;Send assertion unencrypted&rdquo; below.
+        </small>
+    </fieldset>
+
+    <fieldset>
+        <legend>Parser Differentials (post-sign)</legend>
+        <select name="parser_diff_mode" id="parser_diff_mode">
+            <option value="" {{if eq .Config.ParserDiffMode ""}}selected{{end}}>— Off —</option>
+            {{range .ParserDiffModes}}
+            <option value="{{.Value}}" {{if eq $.Config.ParserDiffMode .Value}}selected{{end}}>{{.Label}}</option>
+            {{end}}
+        </select>
+        <small>
+            Emits a response that the SP&rsquo;s signature-checking parser and its
+            claim-reading parser read <em>differently</em>, so it verifies one element and
+            then trusts the claims of another. From
+            &ldquo;The Fragile Lock&rdquo; (PortSwigger, 2025); ruby-saml before 1.18.0 is
+            affected (CVE-2025-66568, CVE-2025-66567).
+            Set a NameID override as well, or there is nothing forged for the SP to report
+            back. Needs a plaintext assertion — turn on &ldquo;Send assertion unencrypted&rdquo; below.
         </small>
     </fieldset>
 

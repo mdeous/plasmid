@@ -36,6 +36,7 @@ type Plasmid struct {
 	AdminMux    *http.ServeMux
 	logger      *slog.Logger
 	externalUrl string
+	key         *rsa.PrivateKey
 	cert        *x509.Certificate
 }
 
@@ -77,6 +78,9 @@ func (p *Plasmid) BuildRoutes() (*internalsml.Inspector, *internalsml.TamperConf
 
 	p.IDP.IDP.AssertionMaker = internalsml.TamperableAssertionMaker{Config: tamperConfig}
 	tamperConfig.SetResigner(internalsml.NewResigner(p.cert))
+	// The parser differential attacks sign as the IdP rather than as an
+	// attacker, so they get the real key as well as the certificate.
+	tamperConfig.SetParserDiffer(internalsml.NewParserDiffer(p.key, p.cert))
 
 	idpHandler := internalsml.InterceptMiddleware(inspector, tamperConfig, p.logger, p.IDP)
 	ssoHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -399,6 +403,7 @@ func New(opts Options) (*Plasmid, error) {
 		AdminMux:    http.NewServeMux(),
 		logger:      opts.Logger,
 		externalUrl: opts.BaseUrl.String(),
+		key:         opts.Key,
 		cert:        opts.Certificate,
 	}, nil
 }
