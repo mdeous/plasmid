@@ -605,3 +605,68 @@ func TestXSWAppliesWhenAssertionUnencrypted(t *testing.T) {
 		t.Fatal("expected XSW to apply once the assertion is sent unencrypted")
 	}
 }
+
+func TestRelayStateOverrideRedirectBinding(t *testing.T) {
+	env := newTestEnv(t)
+	env.tamper.Update(internalsml.TamperUpdateInput{Enabled: true, RelayState: "tampered-relay"})
+
+	body := env.ssoLogin(t)
+	if got := extractFormValue(body, "RelayState"); got != "tampered-relay" {
+		t.Errorf("RelayState reaching the SP: expected %q, got %q", "tampered-relay", got)
+	}
+}
+
+// The IdP-initiated flow takes its RelayState from the stored shortcut, so the
+// request never carries one. The override still has to reach the SP.
+func TestRelayStateOverrideIDPInitiated(t *testing.T) {
+	env := newTestEnv(t)
+
+	shortcut := samlidp.Shortcut{
+		Name:              "testshortcut",
+		ServiceProviderID: "https://sp.example.com/saml2/metadata",
+	}
+	if err := env.store.Put("/shortcuts/testshortcut", &shortcut); err != nil {
+		t.Fatalf("store shortcut: %v", err)
+	}
+	env.tamper.Update(internalsml.TamperUpdateInput{Enabled: true, RelayState: "tampered-relay"})
+
+	form := url.Values{"user": {"testuser"}, "password": {"testpass"}}
+	req := httptest.NewRequest("POST", "https://idp.example.com/login", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Referer", "https://idp.example.com/login/testshortcut")
+	w := httptest.NewRecorder()
+	env.handler.ServeHTTP(w, req)
+
+	sessionCookie := cookiesForURL(w.Result().Cookies(), "session")
+	if sessionCookie == nil {
+		t.Fatal("POST /login: no session cookie set")
+	}
+
+	req = httptest.NewRequest("GET", "https://idp.example.com/login/testshortcut", nil)
+	req.AddCookie(sessionCookie)
+	w = httptest.NewRecorder()
+	env.handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET /login/testshortcut: expected 200, got %d; body: %s", w.Code, w.Body.String())
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, `name="SAMLResponse"`) {
+		t.Fatal("IdP-initiated response missing SAMLResponse form field")
+	}
+	if got := extractFormValue(body, "RelayState"); got != "tampered-relay" {
+		t.Errorf("RelayState reaching the SP: expected %q, got %q", "tampered-relay", got)
+	}
+
+	recorded := false
+	for _, exchange := range env.inspector.List() {
+		for _, mod := range exchange.Modifications {
+			if mod.Field == "RelayState" && mod.NewValue == "tampered-relay" {
+				recorded = true
+			}
+		}
+	}
+	if !recorded {
+		t.Error("expected the inspector to record the RelayState override")
+	}
+}

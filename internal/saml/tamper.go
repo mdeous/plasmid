@@ -64,6 +64,16 @@ func (tc *TamperConfig) NeedsPostSignTransform() bool {
 	return tc.Enabled && (tc.XSWVariant != "" || tc.XXEEnabled || tc.SignatureMode != "" || tc.CommentInjection)
 }
 
+// NeedsResponseRewrite reports whether the outgoing response has to be buffered
+// so it can be modified. That covers the post-sign XML transforms plus the
+// RelayState override, which rewrites a form field rather than the assertion.
+func (tc *TamperConfig) NeedsResponseRewrite() bool {
+	tc.mu.RLock()
+	defer tc.mu.RUnlock()
+	postSign := tc.XSWVariant != "" || tc.XXEEnabled || tc.SignatureMode != "" || tc.CommentInjection
+	return tc.Enabled && (postSign || tc.RelayState != "")
+}
+
 func (tc *TamperConfig) ConsumeModifications() []TamperModification {
 	tc.mu.Lock()
 	defer tc.mu.Unlock()
@@ -166,6 +176,15 @@ func (tc *TamperConfig) Update(input TamperUpdateInput) {
 	tc.XXECustom = input.XXECustom
 	tc.CommentInjection = input.CommentInjection
 	tc.CommentPosition = input.CommentPosition
+}
+
+// ResetModifications drops queued modifications. Called at the start of each
+// intercepted request so leftovers from a flow that never produced a
+// SAMLResponse are not reported against the next exchange.
+func (tc *TamperConfig) ResetModifications() {
+	tc.mu.Lock()
+	defer tc.mu.Unlock()
+	tc.lastMods = nil
 }
 
 func (tc *TamperConfig) RecordModification(mod TamperModification) {

@@ -49,6 +49,7 @@
         <label>RelayState Override
             <input type="text" name="relay_state" value="{{.Config.RelayState}}" placeholder="Leave empty to keep original">
         </label>
+        <small>Rewritten in the form posted to the SP, so it applies to both SP-initiated and IdP-initiated flows. IdP-initiated logins usually carry no RelayState, so the override injects one.</small>
     </fieldset>
 
     <fieldset>

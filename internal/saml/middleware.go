@@ -17,6 +17,7 @@ import (
 
 var (
 	samlResponseRe = regexp.MustCompile(`name="SAMLResponse"\s+value="([^"]+)"`)
+	relayStateRe   = regexp.MustCompile(`name="RelayState"\s+value="([^"]*)"`)
 	formActionRe   = regexp.MustCompile(`action="([^"]+)"`)
 )
 
@@ -46,35 +47,46 @@ func InterceptMiddleware(inspector *Inspector, tamperConfig *TamperConfig, logge
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		captureInbound(inspector, logger, r)
 
-		tamperRelayState(tamperConfig, r)
+		if tamperConfig != nil {
+			tamperConfig.ResetModifications()
+		}
 
-		needsPostSign := tamperConfig != nil && tamperConfig.NeedsPostSignTransform()
+		// The response has to be held back whenever we intend to rewrite it,
+		// because the SAML library streams the POST-binding form straight out.
+		needsRewrite := tamperConfig != nil && tamperConfig.NeedsResponseRewrite()
 		capture := &responseCapture{
 			ResponseWriter: w,
 			body:           &bytes.Buffer{},
-			bufferOnly:     needsPostSign,
+			bufferOnly:     needsRewrite,
 			statusCode:     http.StatusOK,
 		}
 		next.ServeHTTP(capture, r)
 
-		if needsPostSign && capture.bufferOnly {
-			body := transformAndSend(w, capture, tamperConfig, logger)
-			captureOutbound(inspector, tamperConfig, logger, r, body)
-		} else {
-			captureOutbound(inspector, tamperConfig, logger, r, capture.body.Bytes())
+		body := capture.body.Bytes()
+		if needsRewrite {
+			body = rewriteAndSend(w, capture, tamperConfig, logger)
 		}
+		captureOutbound(inspector, tamperConfig, logger, r, body)
 	})
 }
 
-func transformAndSend(w http.ResponseWriter, capture *responseCapture, tamperConfig *TamperConfig, logger *slog.Logger) []byte {
+func rewriteAndSend(w http.ResponseWriter, capture *responseCapture, tamperConfig *TamperConfig, logger *slog.Logger) []byte {
 	body := capture.body.Bytes()
+	if tamperConfig.NeedsPostSignTransform() {
+		body = transformResponseBody(body, tamperConfig, logger)
+	}
+	body = tamperRelayState(body, tamperConfig, logger)
 
+	if capture.statusCode != 0 {
+		w.WriteHeader(capture.statusCode)
+	}
+	w.Write(body)
+	return body
+}
+
+func transformResponseBody(body []byte, tamperConfig *TamperConfig, logger *slog.Logger) []byte {
 	matches := samlResponseRe.FindSubmatchIndex(body)
 	if matches == nil || len(matches) < 4 {
-		if capture.statusCode != 0 {
-			w.WriteHeader(capture.statusCode)
-		}
-		w.Write(body)
 		return body
 	}
 
@@ -82,10 +94,6 @@ func transformAndSend(w http.ResponseWriter, capture *responseCapture, tamperCon
 	transformed, mods, err := TransformSAMLResponse(samlB64, tamperConfig, logger)
 	if err != nil {
 		logger.Error("post-sign transform failed", "error", err)
-		if capture.statusCode != 0 {
-			w.WriteHeader(capture.statusCode)
-		}
-		w.Write(body)
 		return body
 	}
 
@@ -97,37 +105,53 @@ func transformAndSend(w http.ResponseWriter, capture *responseCapture, tamperCon
 	result = append(result, body[:matches[2]]...)
 	result = append(result, []byte(transformed)...)
 	result = append(result, body[matches[3]:]...)
-
-	if capture.statusCode != 0 {
-		w.WriteHeader(capture.statusCode)
-	}
-	w.Write(result)
 	return result
 }
 
-func tamperRelayState(tamperConfig *TamperConfig, r *http.Request) {
+// tamperRelayState rewrites the RelayState of the outgoing POST-binding form.
+// RelayState is not part of the SAML XML and is not covered by any signature,
+// so the value the SP receives is simply whatever sits in this form field.
+// Rewriting it here rather than on the way in covers both flows at once: for
+// SP-initiated logins the library copies it from the request, while for
+// IdP-initiated logins it comes from the stored shortcut and never touches the
+// request at all.
+func tamperRelayState(body []byte, tamperConfig *TamperConfig, logger *slog.Logger) []byte {
 	if tamperConfig == nil || !tamperConfig.IsEnabled() {
-		return
+		return body
 	}
 	tamperConfig.mu.RLock()
 	newRelayState := tamperConfig.RelayState
 	tamperConfig.mu.RUnlock()
 	if newRelayState == "" {
-		return
+		return body
 	}
 
-	_ = r.ParseForm()
-	oldRelayState := r.Form.Get("RelayState")
-	if oldRelayState == "" && r.URL.Query().Get("SAMLRequest") == "" && r.FormValue("SAMLRequest") == "" {
-		return
+	matches := relayStateRe.FindSubmatchIndex(body)
+	if matches == nil || len(matches) < 4 {
+		// No POST-binding form in this response (a login page, an error), so
+		// there is nothing to rewrite.
+		logger.Debug("no RelayState field to tamper in response")
+		return body
 	}
-	r.Form.Set("RelayState", newRelayState)
-	r.PostForm.Set("RelayState", newRelayState)
+
+	oldRelayState := html.UnescapeString(string(body[matches[2]:matches[3]]))
+	if oldRelayState == newRelayState {
+		return body
+	}
+
+	var result []byte
+	result = append(result, body[:matches[2]]...)
+	// The value sits in an HTML attribute; escaping keeps a payload containing
+	// quotes from breaking the form, and the browser posts the raw value.
+	result = append(result, []byte(html.EscapeString(newRelayState))...)
+	result = append(result, body[matches[3]:]...)
+
 	tamperConfig.RecordModification(TamperModification{
 		Field:    "RelayState",
 		OldValue: oldRelayState,
 		NewValue: newRelayState,
 	})
+	return result
 }
 
 func captureInbound(inspector *Inspector, logger *slog.Logger, r *http.Request) {
@@ -244,12 +268,20 @@ func captureOutbound(inspector *Inspector, tamperConfig *TamperConfig, logger *s
 		rawBase64 = html.UnescapeString(string(samlMatch[1]))
 	}
 
+	// Prefer the RelayState from the outgoing form: it reflects what the SP
+	// actually receives, including overrides and IdP-initiated flows where the
+	// request carries no RelayState at all.
+	relayState := r.FormValue("RelayState")
+	if relayMatch := relayStateRe.FindSubmatch(body); len(relayMatch) >= 2 {
+		relayState = html.UnescapeString(string(relayMatch[1]))
+	}
+
 	exchange := SAMLExchange{
 		Direction:       "Response",
 		Endpoint:        r.URL.Path,
 		ServiceProvider: sp,
 		NameID:          nameID,
-		RelayState:      r.FormValue("RelayState"),
+		RelayState:      relayState,
 		RemoteAddr:      r.RemoteAddr,
 		RawXML:          formatXML(rawXML),
 		Signed:          signed,
