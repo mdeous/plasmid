@@ -16,6 +16,8 @@ on:
       - '**.go'
       - 'go.mod'
       - 'go.sum'
+      - 'Dockerfile'
+      - '.github/workflows/**'
 
 permissions:
   contents: read
