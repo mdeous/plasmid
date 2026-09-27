@@ -30,10 +30,26 @@ func TransformSAMLResponse(samlResponseB64 string, config *TamperConfig, logger 
 
 	var mods []TamperModification
 
-	if strings.Contains(string(xmlBytes), "<saml:EncryptedAssertion") || strings.Contains(string(xmlBytes), "<EncryptedAssertion") {
-		if xswVariant != "" || commentInjection {
-			logger.Warn("skipping XSW/comment injection: assertion is encrypted")
+	if IsEncryptedAssertion(xmlBytes) {
+		// These transforms rewrite the assertion XML, which is unreachable once
+		// the library has encrypted it for the SP. Record the skip so it shows
+		// up in the inspector instead of only in the log.
+		if xswVariant != "" {
+			logger.Warn("skipping XSW: assertion is encrypted", "variant", xswVariant)
+			mods = append(mods, TamperModification{
+				Field:    "XSW",
+				OldValue: xswVariant,
+				NewValue: SkippedEncryptedNote,
+			})
 			xswVariant = ""
+		}
+		if commentInjection {
+			logger.Warn("skipping comment injection: assertion is encrypted")
+			mods = append(mods, TamperModification{
+				Field:    "Comment Injection",
+				OldValue: "requested",
+				NewValue: SkippedEncryptedNote,
+			})
 			commentInjection = false
 		}
 	}
@@ -88,6 +104,17 @@ func TransformSAMLResponse(samlResponseB64 string, config *TamperConfig, logger 
 
 	encoded := base64.StdEncoding.EncodeToString(xmlBytes)
 	return encoded, mods, nil
+}
+
+// SkippedEncryptedNote explains, in the inspector and the preview pane, why a
+// transform that needs plaintext XML did not run.
+const SkippedEncryptedNote = `skipped - assertion is encrypted (enable "Send assertion unencrypted")`
+
+// IsEncryptedAssertion reports whether a SAML response carries its assertion
+// encrypted, in which case the assertion XML cannot be rewritten.
+func IsEncryptedAssertion(xmlBytes []byte) bool {
+	return strings.Contains(string(xmlBytes), "<saml:EncryptedAssertion") ||
+		strings.Contains(string(xmlBytes), "<EncryptedAssertion")
 }
 
 func applySignatureMode(xmlBytes []byte, mode string) ([]byte, error) {

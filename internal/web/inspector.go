@@ -65,6 +65,9 @@ func (h *WebHandler) tamperBannerSummary() string {
 	if cfg.XSWVariant != "" {
 		parts = append(parts, cfg.XSWVariant)
 	}
+	if cfg.SendUnencrypted {
+		parts = append(parts, "unencrypted assertion")
+	}
 	if cfg.CommentInjection {
 		parts = append(parts, "comment injection")
 	}
@@ -219,6 +222,7 @@ func parseTamperForm(r *http.Request) internalsml.TamperUpdateInput {
 		InjectAttributes: attrs,
 		XSWVariant:       r.FormValue("xsw_variant"),
 		XSWNameID:        strings.TrimSpace(r.FormValue("xsw_nameid")),
+		SendUnencrypted:  r.FormValue("send_unencrypted") == "on",
 		XXEEnabled:       r.FormValue("xxe_enabled") == "on",
 		XXEType:          r.FormValue("xxe_type"),
 		XXETarget:        strings.TrimSpace(r.FormValue("xxe_target")),
@@ -258,6 +262,7 @@ func (h *WebHandler) handleTamperDisable(w http.ResponseWriter, r *http.Request)
 			InjectAttributes: cur.InjectAttributes,
 			XSWVariant:       cur.XSWVariant,
 			XSWNameID:        cur.XSWNameID,
+			SendUnencrypted:  cur.SendUnencrypted,
 			XXEEnabled:       cur.XXEEnabled,
 			XXEType:          cur.XXEType,
 			XXETarget:        cur.XXETarget,
@@ -298,7 +303,8 @@ func (h *WebHandler) handleTamperPreview(w http.ResponseWriter, r *http.Request)
 	if proposed.Enabled && !proposed.RemoveSignature && proposed.SignatureMode == "" &&
 		proposed.NameID == "" && proposed.NameIDFormat == "" && proposed.Issuer == "" &&
 		proposed.Audience == "" && proposed.RelayState == "" && proposed.XSWVariant == "" &&
-		!proposed.XXEEnabled && !proposed.CommentInjection && len(proposed.InjectAttributes) == 0 {
+		!proposed.XXEEnabled && !proposed.CommentInjection && !proposed.SendUnencrypted &&
+		len(proposed.InjectAttributes) == 0 {
 		warnings = append(warnings, "Tampering is enabled but no transforms are configured — the assertion will pass through unchanged.")
 	}
 
@@ -327,6 +333,14 @@ func (h *WebHandler) handleTamperPreview(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	original := prettyXML(string(originalBytes))
+
+	if internalsml.IsEncryptedAssertion(originalBytes) && (proposed.XSWVariant != "" || proposed.CommentInjection) {
+		if proposed.SendUnencrypted {
+			warnings = append(warnings, `The captured response has an encrypted assertion, so the preview below cannot show XSW or comment injection. With "Send assertion unencrypted" on, the next live flow sends plaintext and the transforms will apply.`)
+		} else {
+			warnings = append(warnings, `The captured response has an encrypted assertion: XSW and comment injection rewrite assertion XML and will be skipped. Enable "Send assertion unencrypted" to make them apply.`)
+		}
+	}
 
 	// Build a throwaway TamperConfig with the proposed values and run the
 	// post-sign transform against the captured response.

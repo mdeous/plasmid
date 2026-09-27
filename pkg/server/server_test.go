@@ -537,3 +537,71 @@ func TestMetadataEndpoint(t *testing.T) {
 		t.Fatal("metadata missing EntityID")
 	}
 }
+
+// The test SP publishes a certificate, so the library encrypts the assertion.
+// This is the premise for the tests below: XSW cannot rewrite what it cannot read.
+func TestAssertionEncryptedByDefault(t *testing.T) {
+	env := newTestEnv(t)
+
+	responseXML := decodeSAMLResponse(t, env.ssoLogin(t))
+	if !strings.Contains(responseXML, "EncryptedAssertion") {
+		t.Fatal("expected an encrypted assertion for an SP that publishes a certificate")
+	}
+}
+
+func TestSendUnencryptedAssertion(t *testing.T) {
+	env := newTestEnv(t)
+	env.tamper.Update(internalsml.TamperUpdateInput{Enabled: true, SendUnencrypted: true})
+
+	responseXML := decodeSAMLResponse(t, env.ssoLogin(t))
+	if strings.Contains(responseXML, "EncryptedAssertion") {
+		t.Error("expected a plaintext assertion when SendUnencrypted is set")
+	}
+	if !strings.Contains(responseXML, "<saml:Assertion") {
+		t.Error("response missing plaintext assertion")
+	}
+	if !strings.Contains(responseXML, "SignatureValue") {
+		t.Error("expected the plaintext assertion to still be signed")
+	}
+}
+
+func TestXSWSkippedWhenAssertionEncrypted(t *testing.T) {
+	env := newTestEnv(t)
+	env.tamper.Update(internalsml.TamperUpdateInput{
+		Enabled:    true,
+		XSWVariant: "xsw3",
+		XSWNameID:  "evil@example.com",
+	})
+
+	responseXML := decodeSAMLResponse(t, env.ssoLogin(t))
+	if strings.Contains(responseXML, "evil@example.com") {
+		t.Error("XSW must not apply to an encrypted assertion")
+	}
+
+	recorded := false
+	for _, exchange := range env.inspector.List() {
+		for _, mod := range exchange.Modifications {
+			if mod.Field == "XSW" && mod.NewValue == internalsml.SkippedEncryptedNote {
+				recorded = true
+			}
+		}
+	}
+	if !recorded {
+		t.Error("expected the inspector to record that XSW was skipped")
+	}
+}
+
+func TestXSWAppliesWhenAssertionUnencrypted(t *testing.T) {
+	env := newTestEnv(t)
+	env.tamper.Update(internalsml.TamperUpdateInput{
+		Enabled:         true,
+		SendUnencrypted: true,
+		XSWVariant:      "xsw3",
+		XSWNameID:       "evil@example.com",
+	})
+
+	responseXML := decodeSAMLResponse(t, env.ssoLogin(t))
+	if !strings.Contains(responseXML, "evil@example.com") {
+		t.Fatal("expected XSW to apply once the assertion is sent unencrypted")
+	}
+}

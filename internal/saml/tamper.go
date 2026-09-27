@@ -31,6 +31,7 @@ type TamperConfig struct {
 	InjectAttributes []TamperAttribute
 	XSWVariant       string
 	XSWNameID        string
+	SendUnencrypted  bool
 	XXEEnabled       bool
 	XXEType          string
 	XXETarget        string
@@ -83,6 +84,7 @@ type TamperConfigSnapshot struct {
 	InjectAttributes []TamperAttribute
 	XSWVariant       string
 	XSWNameID        string
+	SendUnencrypted  bool
 	XXEEnabled       bool
 	XXEType          string
 	XXETarget        string
@@ -107,6 +109,7 @@ func (tc *TamperConfig) GetConfig() TamperConfigSnapshot {
 		InjectAttributes: make([]TamperAttribute, len(tc.InjectAttributes)),
 		XSWVariant:       tc.XSWVariant,
 		XSWNameID:        tc.XSWNameID,
+		SendUnencrypted:  tc.SendUnencrypted,
 		XXEEnabled:       tc.XXEEnabled,
 		XXEType:          tc.XXEType,
 		XXETarget:        tc.XXETarget,
@@ -131,6 +134,7 @@ type TamperUpdateInput struct {
 	InjectAttributes []TamperAttribute
 	XSWVariant       string
 	XSWNameID        string
+	SendUnencrypted  bool
 	XXEEnabled       bool
 	XXEType          string
 	XXETarget        string
@@ -154,6 +158,7 @@ func (tc *TamperConfig) Update(input TamperUpdateInput) {
 	tc.InjectAttributes = input.InjectAttributes
 	tc.XSWVariant = input.XSWVariant
 	tc.XSWNameID = input.XSWNameID
+	tc.SendUnencrypted = input.SendUnencrypted
 	tc.XXEEnabled = input.XXEEnabled
 	tc.XXEType = input.XXEType
 	tc.XXETarget = input.XXETarget
@@ -255,12 +260,71 @@ func (t TamperableAssertionMaker) MakeAssertion(req *crewsaml.IdpAuthnRequest, s
 		}
 	}
 
-	if t.Config.RemoveSignature {
+	// Both branches set AssertionEl, which pre-empts the library's
+	// sign-and-encrypt step in MakeResponse.
+	switch {
+	case t.Config.RemoveSignature:
 		mods = append(mods, TamperModification{"Signature", "present", "removed"})
 		req.AssertionEl = req.Assertion.Element()
+	case t.Config.SendUnencrypted:
+		encrypted := encryptionCapable(req.SPSSODescriptor)
+		if err := makeSignedPlaintextAssertion(req); err != nil {
+			return err
+		}
+		if encrypted {
+			mods = append(mods, TamperModification{"Assertion Encryption", "enabled", "disabled"})
+		}
 	}
 
 	t.Config.lastMods = append(t.Config.lastMods, mods...)
 
 	return nil
+}
+
+// makeSignedPlaintextAssertion builds the assertion element with the SP's
+// encryption certificates hidden, so the library signs it but sends it in the
+// clear. Post-sign transforms such as XSW can only rewrite a plaintext
+// assertion. Signing uses the IdP's own key, so dropping SP key descriptors
+// does not affect it.
+func makeSignedPlaintextAssertion(req *crewsaml.IdpAuthnRequest) error {
+	if req.SPSSODescriptor == nil {
+		return req.MakeAssertionEl()
+	}
+	original := req.SPSSODescriptor
+	filtered := *original
+	filtered.KeyDescriptors = signingOnly(original.KeyDescriptors)
+	req.SPSSODescriptor = &filtered
+	defer func() { req.SPSSODescriptor = original }()
+	return req.MakeAssertionEl()
+}
+
+func signingOnly(descriptors []crewsaml.KeyDescriptor) []crewsaml.KeyDescriptor {
+	kept := make([]crewsaml.KeyDescriptor, 0, len(descriptors))
+	for _, kd := range descriptors {
+		if kd.Use == "signing" {
+			kept = append(kept, kd)
+		}
+	}
+	return kept
+}
+
+// encryptionCapable mirrors the library's certificate lookup: a descriptor
+// marked for encryption, or failing that any descriptor with no declared use
+// that carries a certificate.
+func encryptionCapable(descriptor *crewsaml.SPSSODescriptor) bool {
+	if descriptor == nil {
+		return false
+	}
+	for _, kd := range descriptor.KeyDescriptors {
+		if kd.Use == "encryption" {
+			return true
+		}
+	}
+	for _, kd := range descriptor.KeyDescriptors {
+		if kd.Use == "" && len(kd.KeyInfo.X509Data.X509Certificates) > 0 &&
+			kd.KeyInfo.X509Data.X509Certificates[0].Data != "" {
+			return true
+		}
+	}
+	return false
 }

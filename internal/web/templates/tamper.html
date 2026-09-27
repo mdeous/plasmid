@@ -72,6 +72,15 @@
     </fieldset>
 
     <fieldset>
+        <legend>Assertion Encryption</legend>
+        <small>The IdP encrypts the assertion whenever the SP metadata carries a usable certificate. XSW and comment injection rewrite assertion XML, so they are skipped when it is encrypted.</small>
+        <label>
+            <input type="checkbox" name="send_unencrypted" {{if .Config.SendUnencrypted}}checked{{end}}>
+            Send assertion unencrypted (still signed)
+        </label>
+    </fieldset>
+
+    <fieldset>
         <legend>Comment Injection</legend>
         <small>Injects an XML comment inside the NameID value.</small>
         <label>
