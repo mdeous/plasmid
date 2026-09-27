@@ -14,6 +14,7 @@ import (
 
 	"github.com/crewjam/saml"
 	"github.com/crewjam/saml/samlidp"
+	"github.com/mdeous/plasmid/internal/store"
 	"github.com/mdeous/plasmid/pkg/config"
 	"github.com/mdeous/plasmid/pkg/server"
 	"github.com/mdeous/plasmid/pkg/utils"
@@ -82,8 +83,10 @@ var serveCmd = &cobra.Command{
 			}
 		}
 
-		// pre-populate store with default user and optional SP
-		store := &samlidp.MemoryStore{}
+		// pre-populate store with default user and optional SP.
+		// Wrapped because samlidp.MemoryStore.List is not safe against
+		// concurrent writes, and the dashboard polls it while logins run.
+		idpStore := store.New(&samlidp.MemoryStore{})
 
 		username := viper.GetString(config.UserUsername)
 		logr.Info("registering default user", "username", username)
@@ -101,7 +104,7 @@ var serveCmd = &cobra.Command{
 			Surname:           viper.GetString(config.UserLastName),
 			GivenName:         viper.GetString(config.UserFirstName),
 		}
-		if err = store.Put("/users/"+username, &user); err != nil {
+		if err = idpStore.Put("/users/"+username, &user); err != nil {
 			return err
 		}
 
@@ -117,7 +120,7 @@ var serveCmd = &cobra.Command{
 				return fmt.Errorf("unable to parse SP metadata: %v", err)
 			}
 			service := samlidp.Service{Name: spName, Metadata: metadata}
-			if err = store.Put("/services/"+spName, &service); err != nil {
+			if err = idpStore.Put("/services/"+spName, &service); err != nil {
 				return err
 			}
 		}
@@ -134,7 +137,7 @@ var serveCmd = &cobra.Command{
 			baseUrl,
 			privKey,
 			cert,
-			store,
+			idpStore,
 			logr,
 		)
 		if err != nil {
