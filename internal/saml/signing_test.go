@@ -372,3 +372,66 @@ func TestResignerReusesMaterial(t *testing.T) {
 		t.Error("two runs produced different attacker certificates")
 	}
 }
+
+// A bare RSAKeyValue is what distinguishes this mode: the SP is handed a key,
+// not a certificate, and has to decide whether to trust it.
+func TestResignerRawKeyValueAdvertisesBareKey(t *testing.T) {
+	key, cert := realIDPMaterial(t)
+	original := signedResponse(t, key, cert)
+
+	out, _, err := NewResigner(cert).Apply(original, SignKeyRawKeyValue)
+	if err != nil {
+		t.Fatalf("apply raw keyvalue: %v", err)
+	}
+
+	text := string(out)
+	if strings.Contains(text, "X509Certificate") {
+		t.Error("KeyInfo still advertises a certificate")
+	}
+	if !strings.Contains(text, "<ds:RSAKeyValue>") {
+		t.Fatalf("no RSAKeyValue in the output:\n%s", text)
+	}
+
+	assertion := assertionOf(t, parseResponse(t, out))
+	modulus := findElementRecursive(findSignature(assertion), "ds", "Modulus")
+	if modulus == nil {
+		t.Fatal("RSAKeyValue carries no Modulus")
+	}
+	raw, err := base64.StdEncoding.DecodeString(strings.Join(strings.Fields(modulus.Text()), ""))
+	if err != nil {
+		t.Fatalf("decode modulus: %v", err)
+	}
+
+	// The advertised key has to be attacker material, or the SP accepting it
+	// says nothing about which keys it is willing to trust.
+	pub := &rsa.PublicKey{N: new(big.Int).SetBytes(raw), E: 65537}
+	if pub.N.BitLen() != 2048 {
+		t.Errorf("advertised modulus is %d bits, want 2048", pub.N.BitLen())
+	}
+	if pub.N.Cmp(cert.PublicKey.(*rsa.PublicKey).N) == 0 {
+		t.Error("the advertised key is the real IdP key; it has to be attacker material")
+	}
+}
+
+// A response signature covers the assertion, so the assertion has to be
+// re-signed first or the outer digest is left stale and the SP rejects the
+// response for the wrong reason.
+func TestResignerKeepsResponseSignatureValidWhenBothAreSigned(t *testing.T) {
+	key, cert := realIDPMaterial(t)
+	original := fullResponse(t, key, cert, "alice@example.com", true)
+
+	out, _, err := NewResigner(cert).Apply(original, SignKeyUntrusted)
+	if err != nil {
+		t.Fatalf("apply untrusted: %v", err)
+	}
+
+	response := parseResponse(t, out)
+	attackCert := keyInfoCert(t, response)
+	store := dsig.MemoryX509CertificateStore{Roots: []*x509.Certificate{attackCert}}
+	vctx := dsig.NewDefaultValidationContext(&store)
+	vctx.Clock = dsig.NewFakeClockAt(attackCert.NotBefore.Add(time.Hour))
+	vctx.IdAttribute = "ID"
+	if _, err := vctx.Validate(response); err != nil {
+		t.Fatalf("response signature is stale after re-signing: %v", err)
+	}
+}

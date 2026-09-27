@@ -53,7 +53,8 @@ It is meant to run with minimal configuration and provide an easy way to test SA
   - Signature manipulation (removal, empty SignatureValue, corrupt DigestValue)
   - Signing key and certificate attacks (self-signed clone of the IdP certificate,
     unrelated key, expired or not-yet-valid certificate, rogue certificate in
-    `KeyInfo`, `KeyInfo` removed)
+    `KeyInfo`, `KeyInfo` removed, attacker key advertised as a bare
+    `RSAKeyValue` instead of a certificate)
   - Parser differential attacks: void canonicalization, which signs the empty
     string and declares a relative namespace URI so a vulnerable SP digests and
     verifies over nothing (CVE-2025-66568, ruby-saml before 1.18.0)
