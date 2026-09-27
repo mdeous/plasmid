@@ -1,6 +1,12 @@
+# host/port carry the SAML endpoints an SP has to reach, and are what you
+# expose through a tunnel. base_url is the public URL they are reached on.
 host: 127.0.0.1
 port: 8000
 base_url: http://127.0.0.1:8000
+# admin_host/admin_port carry the dashboard and the REST API. Nothing there
+# authenticates the caller, so keep this bound to loopback and never tunnel it.
+admin_host: 127.0.0.1
+admin_port: 8001
 cert:
   ca_org: Example Org
   ca_country: FR

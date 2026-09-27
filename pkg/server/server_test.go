@@ -23,6 +23,7 @@ import (
 type testEnv struct {
 	plasmid   *Plasmid
 	handler   http.Handler
+	admin     http.Handler
 	sp        saml.ServiceProvider
 	store     *samlidp.MemoryStore
 	tamper    *internalsml.TamperConfig
@@ -91,24 +92,34 @@ func newTestEnv(t *testing.T) *testEnv {
 	idpURL, _ := url.Parse("https://idp.example.com")
 	log := slog.Default()
 
-	p, err := New("localhost", 0, idpURL, idpKey, idpCert, store, log)
+	p, err := New(Options{
+		Host:        "localhost",
+		Port:        0,
+		AdminHost:   "127.0.0.1",
+		AdminPort:   8001,
+		BaseUrl:     idpURL,
+		Key:         idpKey,
+		Certificate: idpCert,
+		Store:       store,
+		Logger:      log,
+	})
 	if err != nil {
 		t.Fatalf("create plasmid: %v", err)
 	}
 
 	sp.IDPMetadata = p.IDP.IDP.Metadata()
 
-	inspector := internalsml.NewInspector(100)
-	tamperConfig := internalsml.NewTamperConfig()
-	p.IDP.IDP.AssertionMaker = internalsml.TamperableAssertionMaker{Config: tamperConfig}
-
-	p.Mux.HandleFunc("POST /login", p.handleLogin)
-	idpHandler := internalsml.InterceptMiddleware(inspector, tamperConfig, log, p.IDP)
-	p.Mux.Handle("/", idpHandler)
+	// Wire through the production route builder so the tests exercise the
+	// same public/admin split the server runs with.
+	inspector, tamperConfig, err := p.BuildRoutes()
+	if err != nil {
+		t.Fatalf("build routes: %v", err)
+	}
 
 	return &testEnv{
 		plasmid:   p,
-		handler:   p.Mux,
+		handler:   p.PublicMux,
+		admin:     p.AdminMux,
 		sp:        sp,
 		store:     store,
 		tamper:    tamperConfig,
@@ -480,7 +491,8 @@ func TestHandleLogin_NoCredentials(t *testing.T) {
 func TestHandleLogin_FallbackRedirect(t *testing.T) {
 	env := newTestEnv(t)
 
-	// Valid auth, no SAMLRequest, no Referer → redirect to /ui/
+	// Valid auth, no SAMLRequest, no Referer → redirect to the dashboard,
+	// which lives on the admin listener rather than this one.
 	form := url.Values{
 		"user":     {"testuser"},
 		"password": {"testpass"},
@@ -494,8 +506,8 @@ func TestHandleLogin_FallbackRedirect(t *testing.T) {
 		t.Fatalf("fallback redirect: expected 303, got %d; body: %s", w.Code, w.Body.String())
 	}
 	location := w.Header().Get("Location")
-	if location != "/ui/" {
-		t.Fatalf("fallback redirect: expected /ui/, got %q", location)
+	if want := "http://127.0.0.1:8001/ui/"; location != want {
+		t.Fatalf("fallback redirect: expected %q, got %q", want, location)
 	}
 }
 
@@ -668,5 +680,82 @@ func TestRelayStateOverrideIDPInitiated(t *testing.T) {
 	}
 	if !recorded {
 		t.Error("expected the inspector to record the RelayState override")
+	}
+}
+
+// TestAdminSurfaceNotPublic is the point of the two-listener split: the
+// samlidp REST API and the dashboard authenticate nobody, so they must not be
+// reachable on the listener an SP (or a tunnel) can talk to.
+func TestAdminSurfaceNotPublic(t *testing.T) {
+	env := newTestEnv(t)
+
+	adminPaths := []struct {
+		method string
+		path   string
+	}{
+		{"GET", "/users/"},
+		{"GET", "/users/testuser"},
+		{"DELETE", "/users/testuser"},
+		{"GET", "/services/"},
+		{"GET", "/services/testsp"},
+		{"GET", "/sessions/"},
+		{"GET", "/shortcuts/"},
+		{"GET", "/ui/"},
+		{"GET", "/ui/users"},
+		{"GET", "/ui/inspector"},
+		{"GET", "/ui/tamper"},
+		{"GET", "/metadata/cert.pem"},
+	}
+
+	for _, tc := range adminPaths {
+		req := httptest.NewRequest(tc.method, "https://idp.example.com"+tc.path, nil)
+		w := httptest.NewRecorder()
+		env.handler.ServeHTTP(w, req)
+		if w.Code != http.StatusNotFound {
+			t.Errorf("%s %s: reachable on the public listener (got %d, want 404)", tc.method, tc.path, w.Code)
+		}
+	}
+}
+
+// TestAdminSurfaceServedOnAdminListener is the other half: everything rejected
+// above still has to work on the listener the operator uses.
+func TestAdminSurfaceServedOnAdminListener(t *testing.T) {
+	env := newTestEnv(t)
+
+	adminPaths := []string{
+		"/users/",
+		"/services/",
+		"/sessions/",
+		"/shortcuts/",
+		"/ui/",
+		"/ui/users",
+		"/ui/inspector",
+		"/ui/tamper",
+		"/metadata/cert.pem",
+	}
+
+	for _, path := range adminPaths {
+		req := httptest.NewRequest("GET", "http://127.0.0.1:8001"+path, nil)
+		w := httptest.NewRecorder()
+		env.admin.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Errorf("GET %s on admin listener: got %d, want 200", path, w.Code)
+		}
+	}
+}
+
+// TestSAMLEndpointsNotOnAdminListener keeps the SAML flow off the admin port,
+// so a misconfigured SP pointed at the dashboard fails loudly instead of
+// half-working.
+func TestSAMLEndpointsNotOnAdminListener(t *testing.T) {
+	env := newTestEnv(t)
+
+	for _, path := range []string{"/sso", "/metadata", "/login/testshortcut"} {
+		req := httptest.NewRequest("GET", "http://127.0.0.1:8001"+path, nil)
+		w := httptest.NewRecorder()
+		env.admin.ServeHTTP(w, req)
+		if w.Code != http.StatusNotFound {
+			t.Errorf("GET %s on admin listener: got %d, want 404", path, w.Code)
+		}
 	}
 }

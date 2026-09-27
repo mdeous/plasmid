@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/mdeous/plasmid/pkg/config"
@@ -79,11 +80,16 @@ func handleError(err error) {
 }
 
 // clientBaseURL returns the URL of the Plasmid instance to talk to. An
-// explicit --url flag wins; otherwise the configured base_url is used, which
-// covers the config file, IDP_BASE_URL and the built-in default.
+// explicit --url flag wins; otherwise the admin listener is used, which is
+// where the REST API lives. base_url is deliberately not the fallback: it is
+// the public SAML URL, and the admin API is not served there.
 func clientBaseURL(cmd *cobra.Command) string {
 	if f := cmd.Flags().Lookup("url"); f != nil && f.Changed {
 		return f.Value.String()
 	}
-	return viper.GetString(config.BaseUrl)
+	host := viper.GetString(config.AdminHost)
+	if host == "" || host == "0.0.0.0" || host == "::" {
+		host = "127.0.0.1"
+	}
+	return fmt.Sprintf("http://%s:%d", host, viper.GetInt(config.AdminPort))
 }

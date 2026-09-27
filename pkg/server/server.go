@@ -29,11 +29,25 @@ import (
 type Plasmid struct {
 	Host        string
 	Port        int
+	AdminHost   string
+	AdminPort   int
 	IDP         *samlidp.Server
-	Mux         *http.ServeMux
+	PublicMux   *http.ServeMux
+	AdminMux    *http.ServeMux
 	logger      *slog.Logger
 	externalUrl string
 	cert        *x509.Certificate
+}
+
+// adminUrl is the address an operator reaches the dashboard on. A wildcard
+// bind address is reported back as loopback, since "0.0.0.0" is not something
+// a browser can usefully follow.
+func (p *Plasmid) adminUrl() string {
+	host := p.AdminHost
+	if host == "" || host == "0.0.0.0" || host == "::" {
+		host = "127.0.0.1"
+	}
+	return fmt.Sprintf("http://%s:%d", host, p.AdminPort)
 }
 
 func (p *Plasmid) Metadata() ([]byte, error) {
@@ -53,56 +67,116 @@ func (p *Plasmid) loggingMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-func (p *Plasmid) Serve(ctx context.Context) error {
-	p.logger.Info("starting server", "host", p.Host, "port", p.Port, "external_url", p.externalUrl)
-
+// BuildRoutes wires the public and admin muxes. The two are served on separate
+// listeners: the public one carries only the SAML endpoints an SP has to reach,
+// while the admin one carries the REST API, dashboard and inspector, none of
+// which authenticate the caller and none of which belong on a public tunnel.
+func (p *Plasmid) BuildRoutes() (*internalsml.Inspector, *internalsml.TamperConfig, error) {
 	inspector := internalsml.NewInspector(100)
 	tamperConfig := internalsml.NewTamperConfig()
 
 	p.IDP.IDP.AssertionMaker = internalsml.TamperableAssertionMaker{Config: tamperConfig}
 
+	idpHandler := internalsml.InterceptMiddleware(inspector, tamperConfig, p.logger, p.IDP)
+	ssoHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/sso/") {
+			p.rewriteSSOPath(r)
+		}
+		idpHandler.ServeHTTP(w, r)
+	})
+
+	// Public: the SAML endpoints only. Anything not listed here 404s rather
+	// than falling through to the samlidp mux, which also serves the admin API.
+	p.PublicMux.HandleFunc("POST /login", p.handleLogin)
+	p.PublicMux.Handle("/login", idpHandler)
+	p.PublicMux.Handle("/login/{shortcut}", idpHandler)
+	p.PublicMux.Handle("/login/{shortcut}/{suffix}", idpHandler)
+	p.PublicMux.Handle("GET /metadata", idpHandler)
+	p.PublicMux.Handle("/sso", ssoHandler)
+	p.PublicMux.Handle("/sso/", ssoHandler)
+
+	// Admin: the samlidp REST API, unwrapped. The intercept middleware only
+	// has SAML exchanges to record, so CRUD calls would be noise in the
+	// inspector.
+	for _, prefix := range []string{"/users/", "/services/", "/sessions/", "/shortcuts/"} {
+		p.AdminMux.Handle(prefix, p.IDP)
+	}
+
 	webHandler, err := web.NewWebHandler(p.IDP.Store, p.IDP, p.logger, p.externalUrl, p.cert)
 	if err != nil {
-		return fmt.Errorf("failed to initialize web UI: %v", err)
+		return nil, nil, fmt.Errorf("failed to initialize web UI: %v", err)
 	}
 	webHandler.SetInspector(inspector)
 	webHandler.SetTamperConfig(tamperConfig)
 
 	metadataXML, err := p.Metadata()
 	if err != nil {
-		return fmt.Errorf("failed to generate metadata for dashboard: %v", err)
+		return nil, nil, fmt.Errorf("failed to generate metadata for dashboard: %v", err)
 	}
 	webHandler.SetMetadataXML(string(metadataXML))
-	webHandler.RegisterRoutes(p.Mux)
-	webHandler.RegisterInspectorRoutes(p.Mux)
+	webHandler.RegisterRoutes(p.AdminMux)
+	webHandler.RegisterInspectorRoutes(p.AdminMux)
 
-	p.Mux.HandleFunc("POST /login", p.handleLogin)
+	p.AdminMux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/ui/", http.StatusSeeOther)
+	})
 
-	idpHandler := internalsml.InterceptMiddleware(inspector, tamperConfig, p.logger, p.IDP)
-	p.Mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasPrefix(r.URL.Path, "/sso/") {
-			p.rewriteSSOPath(r)
-		}
-		idpHandler.ServeHTTP(w, r)
-	}))
+	return inspector, tamperConfig, nil
+}
 
-	srv := &http.Server{
-		Addr:    fmt.Sprintf("%s:%d", p.Host, p.Port),
-		Handler: p.loggingMiddleware(p.Mux),
+func (p *Plasmid) Serve(ctx context.Context) error {
+	p.logger.Info("starting server", "host", p.Host, "port", p.Port, "external_url", p.externalUrl)
+	p.logger.Info("starting admin server", "host", p.AdminHost, "port", p.AdminPort, "url", p.adminUrl())
+
+	if _, _, err := p.BuildRoutes(); err != nil {
+		return err
 	}
 
+	public := &http.Server{
+		Addr:    fmt.Sprintf("%s:%d", p.Host, p.Port),
+		Handler: p.loggingMiddleware(p.PublicMux),
+	}
+	admin := &http.Server{
+		Addr:    fmt.Sprintf("%s:%d", p.AdminHost, p.AdminPort),
+		Handler: p.loggingMiddleware(p.AdminMux),
+	}
+
+	// Either listener failing takes the whole process down: a running IdP with
+	// no dashboard, or a dashboard with no IdP, is not a state worth limping on
+	// in. The first error wins and the context cancel stops the other server.
+	errs := make(chan error, 2)
+	serve := func(name string, srv *http.Server) {
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			errs <- fmt.Errorf("%s server error: %v", name, err)
+			return
+		}
+		errs <- nil
+	}
+
+	// runCtx also fires when one listener dies on its own, so the surviving
+	// one is torn down instead of holding the process open.
+	runCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	go func() {
-		<-ctx.Done()
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
+		<-runCtx.Done()
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer shutdownCancel()
 		p.logger.Info("shutting down server")
-		_ = srv.Shutdown(shutdownCtx)
+		_ = public.Shutdown(shutdownCtx)
+		_ = admin.Shutdown(shutdownCtx)
 	}()
 
-	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		return fmt.Errorf("server error: %v", err)
+	go serve("public", public)
+	go serve("admin", admin)
+
+	var firstErr error
+	for range 2 {
+		if err := <-errs; err != nil && firstErr == nil {
+			firstErr = err
+			cancel()
+		}
 	}
-	return nil
+	return firstErr
 }
 
 func (p *Plasmid) handleLogin(w http.ResponseWriter, r *http.Request) {
@@ -180,7 +254,9 @@ func (p *Plasmid) handleLogin(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	http.Redirect(w, r, "/ui/", http.StatusSeeOther)
+	// A bare login with no SAML context has nowhere to go on this listener:
+	// the dashboard lives on the admin one, so send the operator there.
+	http.Redirect(w, r, p.adminUrl()+"/ui/", http.StatusSeeOther)
 }
 
 // deflateBase64 converts a POST-binding SAMLRequest (plain base64 of the raw
@@ -280,17 +356,32 @@ func (p *Plasmid) rewriteSSOPath(r *http.Request) {
 	r.URL.Path = "/sso"
 }
 
-func New(host string, port int, baseUrl *url.URL, privKey *rsa.PrivateKey, cert *x509.Certificate, store samlidp.Store, logger *slog.Logger) (*Plasmid, error) {
+// Options configures a Plasmid instance. Host/Port bind the public SAML
+// listener and AdminHost/AdminPort the admin one; BaseUrl is the external URL
+// the public listener is reached on, which becomes the IdP entity ID.
+type Options struct {
+	Host        string
+	Port        int
+	AdminHost   string
+	AdminPort   int
+	BaseUrl     *url.URL
+	Key         *rsa.PrivateKey
+	Certificate *x509.Certificate
+	Store       samlidp.Store
+	Logger      *slog.Logger
+}
+
+func New(opts Options) (*Plasmid, error) {
 	loginTmpl, err := web.LoginFormTemplate()
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse login template: %v", err)
 	}
 
 	idpServer, err := samlidp.New(samlidp.Options{
-		URL:               *baseUrl,
-		Key:               privKey,
-		Certificate:       cert,
-		Store:             store,
+		URL:               *opts.BaseUrl,
+		Key:               opts.Key,
+		Certificate:       opts.Certificate,
+		Store:             opts.Store,
 		LoginFormTemplate: loginTmpl,
 	})
 	if err != nil {
@@ -298,12 +389,15 @@ func New(host string, port int, baseUrl *url.URL, privKey *rsa.PrivateKey, cert 
 	}
 
 	return &Plasmid{
-		Host:        host,
-		Port:        port,
+		Host:        opts.Host,
+		Port:        opts.Port,
+		AdminHost:   opts.AdminHost,
+		AdminPort:   opts.AdminPort,
 		IDP:         idpServer,
-		Mux:         http.NewServeMux(),
-		logger:      logger,
-		externalUrl: baseUrl.String(),
-		cert:        cert,
+		PublicMux:   http.NewServeMux(),
+		AdminMux:    http.NewServeMux(),
+		logger:      opts.Logger,
+		externalUrl: opts.BaseUrl.String(),
+		cert:        opts.Certificate,
 	}, nil
 }

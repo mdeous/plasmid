@@ -19,6 +19,7 @@ Minimal-configuration SAML identity provider for security testing of service pro
   - [From Source](#from-source)
   - [Pre-built Binaries](#pre-built-binaries)
 - [Configuration](#configuration)
+  - [Listeners](#listeners)
 - [Usage](#usage)
   - [SP-initiated Flow](#sp-initiated-flow)
   - [IdP-initiated Flow](#idp-initiated-flow)
@@ -95,6 +96,26 @@ An example YAML file with all the configurable options and their default values 
 [`plasmid.example.yaml`](https://github.com/mdeous/plasmid/blob/69bc87be8ab5da2af2adb2af94efa692b7fae3b2/plasmid.example.yml)
 at the root of the project folder.
 
+### Listeners
+
+Plasmid binds two ports, and they are not interchangeable:
+
+| Listener   | Default          | Carries                                                                 |
+| ---------- | ---------------- | ----------------------------------------------------------------------- |
+| **public** | `127.0.0.1:8000` | `/metadata`, `/sso`, `/login`, `/login/<shortcut>` — what an SP reaches  |
+| **admin**  | `127.0.0.1:8001` | `/ui/` dashboard, inspector, and the `/users/` `/services/` `/sessions/` `/shortcuts/` REST API |
+
+> :warning: **Warning**
+>
+> Nothing on the admin listener authenticates the caller. Expose the public
+> port through your tunnel and leave the admin one bound to loopback. Anyone
+> who can reach the admin port can create users, register service providers,
+> and read every assertion captured by the inspector.
+
+The public listener 404s on admin paths and the admin listener 404s on SAML
+paths, so a tunnel pointed at the wrong port fails immediately rather than
+quietly working.
+
 ## Usage
 
 ### SP-initiated Flow
@@ -102,7 +123,8 @@ at the root of the project folder.
 This example demonstrates how to setup a test environment using [`ngrok`](https://ngrok.com/)
 `plasmid` and [`SAMLRaider`](https://github.com/portswigger/saml-raider).
 
-- In a terminal, start a ngrok tunnel and copy the tunnel URL:
+- In a terminal, start a ngrok tunnel on the **public** port and copy the tunnel URL
+  (port 8001 stays local — see [Listeners](#listeners)):
 
 ```bash
 ngrok http 8000
@@ -219,7 +241,8 @@ please refer to the help of each of those to know more about their usage and the
 
 ### Web Dashboard
 
-Plasmid includes a web dashboard accessible at `<base-url>/ui/`. It provides pages for:
+Plasmid includes a web dashboard accessible at `http://<admin-host>:<admin-port>/ui/`
+(`http://127.0.0.1:8001/ui/` by default). It provides pages for:
 
 - **Dashboard** — overview and stats
 - **Users** — manage IdP user accounts
@@ -238,6 +261,10 @@ as an inventory of those endpoints. Most of those can be easily queried using th
 
 For more information, please refer to the code of their handlers in [`crewjam/saml`](https://github.com/crewjam/saml),
 which are listed [in this file](https://github.com/crewjam/saml/blob/main/samlidp/samlidp.go#L86-L125).
+
+The SSO and IdP-initiated endpoints are served on the public listener; every
+other endpoint below is served on the admin listener. `plasmid client` targets
+the admin listener by default, and `--url` overrides it.
 
 #### SSO
 

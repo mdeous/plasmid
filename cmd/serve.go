@@ -131,15 +131,17 @@ var serveCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		idp, err := server.New(
-			viper.GetString(config.Host),
-			viper.GetInt(config.Port),
-			baseUrl,
-			privKey,
-			cert,
-			idpStore,
-			logr,
-		)
+		idp, err := server.New(server.Options{
+			Host:        viper.GetString(config.Host),
+			Port:        viper.GetInt(config.Port),
+			AdminHost:   viper.GetString(config.AdminHost),
+			AdminPort:   viper.GetInt(config.AdminPort),
+			BaseUrl:     baseUrl,
+			Key:         privKey,
+			Certificate: cert,
+			Store:       idpStore,
+			Logger:      logr,
+		})
 		if err != nil {
 			return err
 		}
@@ -189,4 +191,18 @@ func init() {
 		ConfigField: config.BaseUrl,
 	}
 	f.BindString()
+	f = &Flag{
+		Command:     serveCmd,
+		Name:        "admin-host",
+		Usage:       "host to listen on for the dashboard and admin api",
+		ConfigField: config.AdminHost,
+	}
+	f.BindString()
+	f = &Flag{
+		Command:     serveCmd,
+		Name:        "admin-port",
+		Usage:       "port to listen on for the dashboard and admin api",
+		ConfigField: config.AdminPort,
+	}
+	f.BindInt()
 }

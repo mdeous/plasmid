@@ -13,6 +13,8 @@ const (
 	Host                = "host"
 	Port                = "port"
 	BaseUrl             = "base_url"
+	AdminHost           = "admin_host"
+	AdminPort           = "admin_port"
 	CertCaOrg           = "cert.ca_org"
 	CertCaCountry       = "cert.ca_country"
 	CertCaState         = "cert.ca_state"
@@ -37,6 +39,8 @@ var DefaultValues = map[string]any{
 	Host:                "127.0.0.1",
 	Port:                8000,
 	BaseUrl:             "http://127.0.0.1:8000",
+	AdminHost:           "127.0.0.1",
+	AdminPort:           8001,
 	CertCaOrg:           "Example Org",
 	CertCaCountry:       "FR",
 	CertCaState:         "Ile de France",
