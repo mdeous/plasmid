@@ -212,7 +212,7 @@ func TestTamperSaveRejectsUnofferedParserDiffMode(t *testing.T) {
 	mux := http.NewServeMux()
 	h.RegisterInspectorRoutes(mux)
 
-	for _, mode := range []string{"../../etc/passwd", "dtd_attlist", "attr_pollution"} {
+	for _, mode := range []string{"../../etc/passwd", "ns_confusion", "not_a_mode"} {
 		form := url.Values{"enabled": {"on"}, "parser_diff_mode": {mode}}
 		req := httptest.NewRequest("POST", "/ui/tamper", strings.NewReader(form.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")

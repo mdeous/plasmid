@@ -186,18 +186,6 @@ func TestOnlyValidatedModesAreOffered(t *testing.T) {
 	}
 }
 
-func TestParserDiffUsesDoctype(t *testing.T) {
-	for _, spec := range parserDiffSpecs {
-		want := spec.mode == ParserDiffDTDAttlist
-		if got := ParserDiffUsesDoctype(spec.mode); got != want {
-			t.Errorf("ParserDiffUsesDoctype(%q) = %v, want %v", spec.mode, got, want)
-		}
-	}
-	if ParserDiffUsesDoctype("") {
-		t.Error("the off mode prepends no DOCTYPE")
-	}
-}
-
 func voidOutput(t *testing.T, signResponse bool) ([]byte, *rsa.PrivateKey, *x509.Certificate) {
 	t.Helper()
 	key, cert := realIDPMaterial(t)
@@ -376,101 +364,6 @@ func TestParserDiffModesRoundTrip(t *testing.T) {
 				t.Error("output is not byte-stable across a reparse")
 			}
 		})
-	}
-}
-
-func TestAttrPollutionOrdersIDAttributes(t *testing.T) {
-	key, cert := realIDPMaterial(t)
-	in := fullResponse(t, key, cert, "alice@example.com", true)
-	out, _, err := NewParserDiffer(key, cert).applyWith(in, ParserDiffAttrPollution, defaultParserDiffOptions)
-	if err != nil {
-		t.Fatalf("apply attr_pollution: %v", err)
-	}
-	// The ordering is the payload: libxml2 resolves an unqualified @ID lookup to
-	// the first attribute whose local name matches, whatever its prefix. So the
-	// assertion belongs at byte level, not on the parsed tree.
-	text := string(out)
-	prefixed := strings.Index(text, `samlp:ID="`)
-	plain := strings.Index(text, ` ID="`)
-	if prefixed < 0 {
-		t.Fatalf("no samlp:ID in the output:\n%s", text[:min(len(text), 400)])
-	}
-	if plain < 0 {
-		t.Fatalf("no plain ID in the output:\n%s", text[:min(len(text), 400)])
-	}
-	if prefixed > plain {
-		t.Errorf("samlp:ID must precede ID; got prefixed at %d, plain at %d", prefixed, plain)
-	}
-}
-
-func TestAttrPollutionIDsMatchTheSignedReference(t *testing.T) {
-	key, cert := realIDPMaterial(t)
-	in := fullResponse(t, key, cert, "alice@example.com", true)
-	out, _, err := NewParserDiffer(key, cert).applyWith(in, ParserDiffAttrPollution, defaultParserDiffOptions)
-	if err != nil {
-		t.Fatalf("apply attr_pollution: %v", err)
-	}
-	doc := etree.NewDocument()
-	if err := doc.ReadFromBytes(out); err != nil {
-		t.Fatalf("reparse: %v", err)
-	}
-	response := doc.Root()
-	want, err := signedElementID(response)
-	if err != nil {
-		t.Fatalf("signed element id: %v", err)
-	}
-	for _, attr := range response.Attr {
-		if attr.Key == "ID" && attr.Value != want {
-			t.Errorf("%s:ID = %q, want the signed reference %q", attr.Space, attr.Value, want)
-		}
-	}
-}
-
-func TestNSConfusionEmitsXMLXmlnsVerbatim(t *testing.T) {
-	key, cert := realIDPMaterial(t)
-	in := fullResponse(t, key, cert, "alice@example.com", true)
-	out, _, err := NewParserDiffer(key, cert).applyWith(in, ParserDiffNSConfusion, defaultParserDiffOptions)
-	if err != nil {
-		t.Fatalf("apply ns_confusion: %v", err)
-	}
-	text := string(out)
-	if !strings.Contains(text, `xml:xmlns="http://www.w3.org/2000/09/xmldsig_#"`) {
-		t.Error("xml:xmlns was not emitted verbatim")
-	}
-	if !strings.Contains(text, "StatusDetail") {
-		t.Error("the decoy is not inside StatusDetail")
-	}
-	// The real signature has to survive in its schema-valid position, or a
-	// strict SP rejects the document before it evaluates any of this.
-	doc := etree.NewDocument()
-	if err := doc.ReadFromBytes(out); err != nil {
-		t.Fatalf("reparse: %v", err)
-	}
-	if findSignature(doc.Root()) == nil {
-		t.Error("the response lost its real signature")
-	}
-}
-
-func TestDTDAttlistRemovesLiteralIDAndAddsDoctype(t *testing.T) {
-	key, cert := realIDPMaterial(t)
-	in := fullResponse(t, key, cert, "alice@example.com", true)
-	out, _, err := NewParserDiffer(key, cert).applyWith(in, ParserDiffDTDAttlist, defaultParserDiffOptions)
-	if err != nil {
-		t.Fatalf("apply dtd_attlist: %v", err)
-	}
-	text := string(out)
-	if !strings.Contains(text, "<!ATTLIST samlp:Response ID CDATA #FIXED") {
-		t.Errorf("no unescaped ATTLIST in the output:\n%s", text[:min(len(text), 400)])
-	}
-	if strings.Contains(text, "&lt;!ATTLIST") || strings.Contains(text, "&quot;") {
-		t.Error("the DOCTYPE was escaped; it has to be emitted verbatim")
-	}
-	doc := etree.NewDocument()
-	if err := doc.ReadFromBytes(out); err != nil {
-		t.Fatalf("reparse: %v", err)
-	}
-	if got := doc.Root().SelectAttrValue("ID", ""); got != "" {
-		t.Errorf("the literal ID attribute survived (%q); only the DTD default may supply it", got)
 	}
 }
 

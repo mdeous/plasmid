@@ -312,9 +312,6 @@ func (h *WebHandler) handleTamperPreview(w http.ResponseWriter, r *http.Request)
 	if proposed.ParserDiffMode == internalsml.ParserDiffVoidC14N && proposed.NameID == "" {
 		warnings = append(warnings, "Void canonicalization on its own changes nothing the SP can report back. Set a NameID override to find out whether it accepts a forged subject.")
 	}
-	if internalsml.ParserDiffUsesDoctype(proposed.ParserDiffMode) && proposed.XXEEnabled {
-		warnings = append(warnings, "This parser differential mode prepends a DOCTYPE and so does XXE. A document may only carry one, so XXE will be skipped.")
-	}
 	if proposed.Enabled && !proposed.RemoveSignature && proposed.SignatureMode == "" &&
 		proposed.SignKeyMode == "" && proposed.ParserDiffMode == "" &&
 		proposed.NameID == "" && proposed.NameIDFormat == "" && proposed.Issuer == "" &&

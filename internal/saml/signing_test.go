@@ -3,6 +3,7 @@ package saml
 import (
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -139,7 +140,7 @@ func keyInfoCert(t *testing.T, el *etree.Element) *x509.Certificate {
 
 func TestResignerClonesIdentityButNotKey(t *testing.T) {
 	key, cert := realIDPMaterial(t)
-	r := NewResigner(cert)
+	r := NewResigner(key, cert)
 
 	out, desc, err := r.Apply(signedResponse(t, key, cert), SignKeyClone)
 	if err != nil {
@@ -192,7 +193,7 @@ func TestResignerValidityWindows(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.mode, func(t *testing.T) {
-			r := NewResigner(cert)
+			r := NewResigner(key, cert)
 			out, _, err := r.Apply(signedResponse(t, key, cert), tc.mode)
 			if err != nil {
 				t.Fatalf("apply %s: %v", tc.mode, err)
@@ -204,7 +205,7 @@ func TestResignerValidityWindows(t *testing.T) {
 
 func TestResignerUntrustedIsNotTheIdP(t *testing.T) {
 	key, cert := realIDPMaterial(t)
-	r := NewResigner(cert)
+	r := NewResigner(key, cert)
 
 	out, _, err := r.Apply(signedResponse(t, key, cert), SignKeyUntrusted)
 	if err != nil {
@@ -220,7 +221,7 @@ func TestResignerUntrustedIsNotTheIdP(t *testing.T) {
 func TestResignerRogueKeyInfoKeepsRealSignature(t *testing.T) {
 	key, cert := realIDPMaterial(t)
 	original := signedResponse(t, key, cert)
-	r := NewResigner(cert)
+	r := NewResigner(key, cert)
 
 	out, _, err := r.Apply(original, SignKeyRogueKeyInfo)
 	if err != nil {
@@ -243,7 +244,7 @@ func TestResignerRogueKeyInfoKeepsRealSignature(t *testing.T) {
 
 func TestResignerStripKeyInfoRemovesItEntirely(t *testing.T) {
 	key, cert := realIDPMaterial(t)
-	r := NewResigner(cert)
+	r := NewResigner(key, cert)
 
 	out, _, err := r.Apply(signedResponse(t, key, cert), SignKeyStripKeyInfo)
 	if err != nil {
@@ -271,7 +272,7 @@ func TestResignedSignatureVerifies(t *testing.T) {
 
 	for _, mode := range []string{SignKeyClone, SignKeyUntrusted, SignKeyExpired, SignKeyNotYetValid} {
 		t.Run(mode, func(t *testing.T) {
-			r := NewResigner(cert)
+			r := NewResigner(key, cert)
 			out, _, err := r.Apply(signedResponse(t, key, cert), mode)
 			if err != nil {
 				t.Fatalf("apply %s: %v", mode, err)
@@ -300,7 +301,7 @@ func TestResignedSignatureVerifies(t *testing.T) {
 // certificate — the correct behaviour these modes are probing for.
 func TestResignedSignatureFailsUnderRealCert(t *testing.T) {
 	key, cert := realIDPMaterial(t)
-	r := NewResigner(cert)
+	r := NewResigner(key, cert)
 
 	out, _, err := r.Apply(signedResponse(t, key, cert), SignKeyClone)
 	if err != nil {
@@ -323,7 +324,7 @@ func TestResignedSignatureFailsUnderRealCert(t *testing.T) {
 // SP rejects the response before it ever checks the signature.
 func TestSignaturePositionFollowsSchema(t *testing.T) {
 	key, cert := realIDPMaterial(t)
-	r := NewResigner(cert)
+	r := NewResigner(key, cert)
 
 	out, _, err := r.Apply(signedResponse(t, key, cert), SignKeyClone)
 	if err != nil {
@@ -344,7 +345,7 @@ func TestSignaturePositionFollowsSchema(t *testing.T) {
 
 func TestResignerRejectsUnknownMode(t *testing.T) {
 	key, cert := realIDPMaterial(t)
-	r := NewResigner(cert)
+	r := NewResigner(key, cert)
 
 	if _, _, err := r.Apply(signedResponse(t, key, cert), "not_a_mode"); err == nil {
 		t.Fatal("expected an error for an unknown mode")
@@ -355,7 +356,7 @@ func TestResignerRejectsUnknownMode(t *testing.T) {
 // logins, so an operator stepping through modes compares like with like.
 func TestResignerReusesMaterial(t *testing.T) {
 	key, cert := realIDPMaterial(t)
-	r := NewResigner(cert)
+	r := NewResigner(key, cert)
 
 	first, _, err := r.Apply(signedResponse(t, key, cert), SignKeyClone)
 	if err != nil {
@@ -379,7 +380,7 @@ func TestResignerRawKeyValueAdvertisesBareKey(t *testing.T) {
 	key, cert := realIDPMaterial(t)
 	original := signedResponse(t, key, cert)
 
-	out, _, err := NewResigner(cert).Apply(original, SignKeyRawKeyValue)
+	out, _, err := NewResigner(key, cert).Apply(original, SignKeyRawKeyValue)
 	if err != nil {
 		t.Fatalf("apply raw keyvalue: %v", err)
 	}
@@ -420,7 +421,7 @@ func TestResignerKeepsResponseSignatureValidWhenBothAreSigned(t *testing.T) {
 	key, cert := realIDPMaterial(t)
 	original := fullResponse(t, key, cert, "alice@example.com", true)
 
-	out, _, err := NewResigner(cert).Apply(original, SignKeyUntrusted)
+	out, _, err := NewResigner(key, cert).Apply(original, SignKeyUntrusted)
 	if err != nil {
 		t.Fatalf("apply untrusted: %v", err)
 	}
@@ -433,5 +434,67 @@ func TestResignerKeepsResponseSignatureValidWhenBothAreSigned(t *testing.T) {
 	vctx.IdAttribute = "ID"
 	if _, err := vctx.Validate(response); err != nil {
 		t.Fatalf("response signature is stale after re-signing: %v", err)
+	}
+}
+
+// The KeyInfo-only modes change the assertion without re-signing it, so the
+// response signature that covers the assertion has to be refreshed. Without
+// that the SP rejects on a stale digest and never evaluates the key material,
+// which is the only thing these modes are asking about. The certificate the
+// response advertises is deliberately wrong for these modes, so the digest is
+// what has to be checked, not the chain.
+func TestResignerKeyInfoModesRefreshResponseSignature(t *testing.T) {
+	for _, mode := range []string{SignKeyRogueKeyInfo, SignKeyStripKeyInfo} {
+		t.Run(mode, func(t *testing.T) {
+			key, cert := realIDPMaterial(t)
+			original := fullResponse(t, key, cert, "alice@example.com", true)
+
+			out, _, err := NewResigner(key, cert).Apply(original, mode)
+			if err != nil {
+				t.Fatalf("apply %s: %v", mode, err)
+			}
+
+			got, want := responseDigest(t, out)
+			if got != want {
+				t.Errorf("response digest is stale: signature says %q, document hashes to %q", want, got)
+			}
+		})
+	}
+}
+
+// responseDigest returns the digest of the response as it stands and the digest
+// its signature claims, the way an SP recomputes it: canonicalize the element
+// with the signature detached, per the enveloped-signature transform.
+func responseDigest(t *testing.T, xmlBytes []byte) (computed, claimed string) {
+	t.Helper()
+
+	response := parseResponse(t, xmlBytes)
+	sig := findSignature(response)
+	if sig == nil {
+		t.Fatal("response carries no signature")
+	}
+	digestValue := findElementRecursive(sig, "ds", "DigestValue")
+	if digestValue == nil {
+		t.Fatal("response signature carries no DigestValue")
+	}
+	claimed = strings.Join(strings.Fields(digestValue.Text()), "")
+
+	response.RemoveChild(sig)
+	canonical, err := dsig.MakeC14N10ExclusiveCanonicalizerWithPrefixList("").Canonicalize(response)
+	if err != nil {
+		t.Fatalf("canonicalize response: %v", err)
+	}
+	sum := sha256.Sum256(canonical)
+	return base64.StdEncoding.EncodeToString(sum[:]), claimed
+}
+
+// Refreshing the response signature needs the real key; without it the mode has
+// to fail loudly rather than emit a response with a stale digest.
+func TestResignerKeyInfoModesNeedTheIdPKey(t *testing.T) {
+	key, cert := realIDPMaterial(t)
+	original := fullResponse(t, key, cert, "alice@example.com", true)
+
+	if _, _, err := NewResigner(nil, cert).Apply(original, SignKeyRogueKeyInfo); err == nil {
+		t.Fatal("expected an error when the IdP key is unavailable")
 	}
 }

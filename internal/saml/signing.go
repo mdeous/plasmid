@@ -85,6 +85,7 @@ func IsSignKeyMode(mode string) bool {
 // signed, rather than swapping the IdP's key for the request, because the key
 // on saml.IdentityProvider is read by every concurrent login.
 type Resigner struct {
+	realKey  *rsa.PrivateKey
 	realCert *x509.Certificate
 
 	mu       sync.Mutex
@@ -96,8 +97,18 @@ type signMaterial struct {
 	cert *x509.Certificate
 }
 
-func NewResigner(realCert *x509.Certificate) *Resigner {
-	return &Resigner{realCert: realCert, material: map[string]*signMaterial{}}
+// NewResigner takes the real IdP key as well as the certificate: the modes that
+// only rewrite KeyInfo have to re-sign the response afterwards, and that outer
+// signature has to stay the IdP's own so the SP evaluates the KeyInfo rather
+// than an unexpected signer.
+func NewResigner(realKey *rsa.PrivateKey, realCert *x509.Certificate) *Resigner {
+	return &Resigner{realKey: realKey, realCert: realCert, material: map[string]*signMaterial{}}
+}
+
+// keyInfoOnlyMode reports whether a mode leaves the signature alone and only
+// changes the key material it advertises.
+func keyInfoOnlyMode(mode string) bool {
+	return mode == SignKeyStripKeyInfo || mode == SignKeyRogueKeyInfo
 }
 
 // fingerprint is the SHA-256 of the DER, formatted the way SP admin UIs
@@ -223,6 +234,9 @@ func (r *Resigner) Apply(xmlBytes []byte, mode string) ([]byte, string, error) {
 		return nil, "", err
 	}
 
+	responseSigned := findSignature(response) != nil
+	assertion := findElement(response, "saml", "Assertion")
+
 	for _, el := range targets {
 		switch mode {
 		case SignKeyStripKeyInfo:
@@ -237,6 +251,22 @@ func (r *Resigner) Apply(xmlBytes []byte, mode string) ([]byte, string, error) {
 		default:
 			if err := resignElement(el, material); err != nil {
 				return nil, "", err
+			}
+		}
+
+		// A response signature covers the assertion. The modes that only rewrite
+		// KeyInfo leave the assertion's signature in place, so the outer digest
+		// goes stale and the SP rejects on the digest without ever evaluating the
+		// key material. Refreshing the response signature with the real IdP key
+		// leaves the advertised key as the only anomaly. The response is the next
+		// target in the loop, so its own KeyInfo is rewritten after this.
+		if keyInfoOnlyMode(mode) && el == assertion && responseSigned {
+			if r.realKey == nil {
+				return nil, "", fmt.Errorf("signing mode %q needs the IdP key to refresh the response signature", mode)
+			}
+			real := &signMaterial{key: r.realKey, cert: r.realCert}
+			if err := resignElement(response, real); err != nil {
+				return nil, "", fmt.Errorf("refresh response signature: %w", err)
 			}
 		}
 	}

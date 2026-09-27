@@ -77,7 +77,7 @@ func (p *Plasmid) BuildRoutes() (*internalsml.Inspector, *internalsml.TamperConf
 	tamperConfig := internalsml.NewTamperConfig()
 
 	p.IDP.IDP.AssertionMaker = internalsml.TamperableAssertionMaker{Config: tamperConfig}
-	tamperConfig.SetResigner(internalsml.NewResigner(p.cert))
+	tamperConfig.SetResigner(internalsml.NewResigner(p.key, p.cert))
 	// The parser differential attacks sign as the IdP rather than as an
 	// attacker, so they get the real key as well as the certificate.
 	tamperConfig.SetParserDiffer(internalsml.NewParserDiffer(p.key, p.cert))

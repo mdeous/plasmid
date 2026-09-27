@@ -3,7 +3,6 @@ package saml
 import (
 	"encoding/base64"
 	"encoding/pem"
-	"fmt"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -11,42 +10,6 @@ import (
 
 	"github.com/beevik/etree"
 )
-
-// TestSweepAttrPollution dumps every attribute-pollution shape so they can be
-// run against a real implementation. Payload design is measurement, not
-// guesswork: only the target can say which shape actually splits its parsers.
-func TestSweepAttrPollution(t *testing.T) {
-	dir := os.Getenv("PLASMID_DUMP_DIR")
-	if dir == "" {
-		t.Skip("set PLASMID_DUMP_DIR to dump sweep payloads")
-	}
-	key, cert := realIDPMaterial(t)
-	p := NewParserDiffer(key, cert)
-
-	for _, prefixed := range []bool{true, false} {
-		for _, xmlID := range []bool{true, false} {
-			for _, first := range []bool{true, false} {
-				if !prefixed && !xmlID {
-					continue
-				}
-				opt := defaultParserDiffOptions
-				opt.EmitPrefixedID = prefixed
-				opt.EmitXMLID = xmlID
-				opt.PrefixedIDFirst = first
-				name := fmt.Sprintf("sweep-attr_p%t-x%t-first%t.xml", prefixed, xmlID, first)
-				out, _, err := p.applyWith(fullResponse(t, key, cert, "admin@evil.example", true), ParserDiffAttrPollution, opt)
-				if err != nil {
-					t.Logf("%s: %v", name, err)
-					continue
-				}
-				if err := os.WriteFile(filepath.Join(dir, name), out, 0o644); err != nil {
-					t.Fatalf("write: %v", err)
-				}
-				t.Logf("wrote %s", name)
-			}
-		}
-	}
-}
 
 // TestSweepAllModes dumps one payload per attack mode plasmid offers, so the
 // whole catalogue can be run against a real implementation and the operator can
@@ -58,6 +21,15 @@ func TestSweepAllModes(t *testing.T) {
 	}
 	key, cert := realIDPMaterial(t)
 
+	// Every payload here is signed under this key, so the bench has to configure
+	// the SP with this certificate. A mismatched one makes every mode fail on the
+	// certificate before the attack is reached.
+	certPath := filepath.Join(dir, "mode-idp-cert.pem")
+	if err := os.WriteFile(certPath, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: cert.Raw}), 0o644); err != nil {
+		t.Fatalf("write cert: %v", err)
+	}
+	t.Logf("wrote %s", certPath)
+
 	write := func(name string, data []byte) {
 		if err := os.WriteFile(filepath.Join(dir, "mode-"+name+".xml"), data, 0o644); err != nil {
 			t.Fatalf("write %s: %v", name, err)
@@ -65,7 +37,11 @@ func TestSweepAllModes(t *testing.T) {
 		t.Logf("wrote mode-%s.xml", name)
 	}
 
-	resigner := NewResigner(cert)
+	// An untampered response under the same key, so a rejection elsewhere is the
+	// mode's doing rather than the harness's.
+	write("baseline", fullResponse(t, key, cert, "alice@example.com", true))
+
+	resigner := NewResigner(key, cert)
 	for _, mode := range SignKeyModes {
 		out, _, err := resigner.Apply(fullResponse(t, key, cert, "admin@evil.example", true), mode)
 		if err != nil {

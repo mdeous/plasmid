@@ -157,20 +157,6 @@ func TransformSAMLResponse(samlResponseB64 string, config *TamperConfig, logger 
 		})
 	}
 
-	// Both a DOCTYPE-based parser differential and the XXE mode prepend a
-	// DOCTYPE, and a document may carry only one. etree will not catch the
-	// duplicate for us, so drop XXE: the parser differential is the mode the
-	// operator selected as the primary attack and it has already run.
-	if xxeEnabled && ParserDiffUsesDoctype(parserDiffMode) {
-		logger.Warn("skipping XXE: parser differential mode already prepends a DOCTYPE", "mode", parserDiffMode)
-		mods = append(mods, TamperModification{
-			Field:    "XXE",
-			OldValue: xxeType,
-			NewValue: SkippedDoctypeConflictNote,
-		})
-		xxeEnabled = false
-	}
-
 	if xxeEnabled {
 		xmlBytes, err = ApplyXXE(xmlBytes, xxeType, xxeTarget, xxePlacement, xxeCustom)
 		if err != nil {
@@ -190,10 +176,6 @@ func TransformSAMLResponse(samlResponseB64 string, config *TamperConfig, logger 
 // SkippedEncryptedNote explains, in the inspector and the preview pane, why a
 // transform that needs plaintext XML did not run.
 const SkippedEncryptedNote = `skipped - assertion is encrypted (enable "Send assertion unencrypted")`
-
-// SkippedDoctypeConflictNote explains why XXE did not run alongside a
-// DOCTYPE-based parser differential mode.
-const SkippedDoctypeConflictNote = `skipped - the parser differential mode already prepends a DOCTYPE and a document may only have one`
 
 // IsEncryptedAssertion reports whether a SAML response carries its assertion
 // encrypted, in which case the assertion XML cannot be rewritten.
