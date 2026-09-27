@@ -110,25 +110,7 @@ func (h *WebHandler) handleInspectorExchanges(w http.ResponseWriter, r *http.Req
 	if h.inspector == nil {
 		return
 	}
-	exchanges := h.inspector.List()
-	if len(exchanges) == 0 {
-		w.Write([]byte(`<p class="empty-state">No SAML exchanges captured yet. Trigger a flow via a <a href="/ui/shortcuts">login shortcut</a> or SP-initiated SSO to see traffic here.</p>`))
-		return
-	}
-
-	w.Write([]byte(`<table><thead><tr><th>Time</th><th>Direction</th><th>Endpoint</th><th>SP</th><th>NameID</th><th>Signed</th><th>Tampered</th><th>Actions</th></tr></thead><tbody>`))
-	for _, ex := range exchanges {
-		signed := `<span class="badge badge-red">No</span>`
-		if ex.Signed {
-			signed = `<span class="badge badge-green">Yes</span>`
-		}
-		tampered := ""
-		if ex.Tampered {
-			tampered = `<span class="badge badge-red">Yes</span>`
-		}
-		w.Write([]byte(`<tr class="inspector-row" data-direction="` + html.EscapeString(ex.Direction) + `" data-sp="` + html.EscapeString(strings.ToLower(ex.ServiceProvider)) + `" data-nameid="` + html.EscapeString(strings.ToLower(ex.NameID)) + `" data-endpoint="` + html.EscapeString(strings.ToLower(ex.Endpoint)) + `"><td>` + html.EscapeString(ex.Timestamp) + `</td><td>` + html.EscapeString(ex.Direction) + `</td><td><code>` + html.EscapeString(ex.Endpoint) + `</code></td><td>` + html.EscapeString(ex.ServiceProvider) + `</td><td>` + html.EscapeString(ex.NameID) + `</td><td>` + signed + `</td><td>` + tampered + `</td><td><button class="outline" hx-get="/ui/inspector/` + html.EscapeString(ex.ID) + `" hx-target="#exchange-detail" hx-swap="innerHTML">View</button></td></tr>`))
-	}
-	w.Write([]byte(`</tbody></table>`))
+	h.renderPartial(w, "inspector_table", h.inspector.List())
 }
 
 func (h *WebHandler) handleInspectorDetail(w http.ResponseWriter, r *http.Request) {

@@ -58,6 +58,7 @@ func NewWebHandler(store samlidp.Store, idpServer *samlidp.Server, logger *slog.
 		"templates/session_row.html",
 		"templates/shortcut_row.html",
 		"templates/inspector_detail.html",
+		"templates/inspector_table.html",
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse base templates: %v", err)
@@ -91,6 +92,7 @@ func NewWebHandler(store samlidp.Store, idpServer *samlidp.Server, logger *slog.
 		"templates/shortcut_row.html",
 		"templates/stats.html",
 		"templates/inspector_detail.html",
+		"templates/inspector_table.html",
 		"templates/replay_form.html",
 	)
 	if err != nil {

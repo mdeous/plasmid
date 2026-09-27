@@ -1,0 +1,34 @@
+{{define "inspector_table"}}
+{{if .}}
+<table>
+    <thead>
+        <tr>
+            <th>Time</th>
+            <th>Direction</th>
+            <th>Endpoint</th>
+            <th>SP</th>
+            <th>NameID</th>
+            <th>Signed</th>
+            <th>Tampered</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {{range .}}
+        <tr class="inspector-row" data-direction="{{.Direction}}" data-sp="{{lower .ServiceProvider}}" data-nameid="{{lower .NameID}}" data-endpoint="{{lower .Endpoint}}">
+            <td>{{.Timestamp}}</td>
+            <td>{{.Direction}}</td>
+            <td><code>{{.Endpoint}}</code></td>
+            <td>{{.ServiceProvider}}</td>
+            <td>{{.NameID}}</td>
+            <td>{{if .Signed}}<span class="badge badge-green">Yes</span>{{else}}<span class="badge badge-red">No</span>{{end}}</td>
+            <td>{{if .Tampered}}<span class="badge badge-red">Yes</span>{{end}}</td>
+            <td><button class="outline" hx-get="/ui/inspector/{{.ID}}" hx-target="#exchange-detail" hx-swap="innerHTML">View</button></td>
+        </tr>
+        {{end}}
+    </tbody>
+</table>
+{{else}}
+<p class="empty-state">No SAML exchanges captured yet. Trigger a flow via a <a href="/ui/shortcuts">login shortcut</a> or SP-initiated SSO to see traffic here.</p>
+{{end}}
+{{end}}
