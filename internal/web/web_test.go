@@ -8,9 +8,52 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/crewjam/saml"
 	"github.com/crewjam/saml/samlidp"
 	internalsml "github.com/mdeous/plasmid/internal/saml"
 )
+
+func TestValidateEntityName(t *testing.T) {
+	valid := []string{"alice", "test-sp", "sp_1", "a.b", "Admin@example.com"}
+	for _, name := range valid {
+		if err := validateEntityName(name); err != nil {
+			t.Errorf("validateEntityName(%q): unexpected error %v", name, err)
+		}
+	}
+
+	invalid := []string{"", "a/b", "with space", "tab\there", "new\nline"}
+	for _, name := range invalid {
+		if err := validateEntityName(name); err == nil {
+			t.Errorf("validateEntityName(%q): expected an error, got nil", name)
+		}
+	}
+}
+
+// Sessions created by the upstream library get base64 IDs, which can contain
+// characters that need escaping in a URL path.
+func TestHandleSessionDeleteEscapedID(t *testing.T) {
+	store := &samlidp.MemoryStore{}
+	id := "abc/def+ghi="
+	if err := store.Put("/sessions/"+id, &saml.Session{ID: id}); err != nil {
+		t.Fatalf("Put: %v", err)
+	}
+
+	h := &WebHandler{store: store, logger: slog.Default()}
+	mux := http.NewServeMux()
+	mux.HandleFunc("DELETE /ui/sessions/{id}", h.handleSessionDelete)
+
+	req := httptest.NewRequest("DELETE", "/ui/sessions/"+url.QueryEscape(id), nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("DELETE session: expected 200, got %d", w.Code)
+	}
+	var session saml.Session
+	if err := store.Get("/sessions/"+id, &session); err != samlidp.ErrNotFound {
+		t.Errorf("session was not deleted: Get returned %v", err)
+	}
+}
 
 // Guards the template sets: a partial that is registered in one set but not the
 // other, or a field renamed out from under a template, only shows up at render

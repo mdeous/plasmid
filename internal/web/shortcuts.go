@@ -44,6 +44,10 @@ func (h *WebHandler) handleShortcutCreate(w http.ResponseWriter, r *http.Request
 		http.Error(w, "Name and SP Entity ID are required", http.StatusBadRequest)
 		return
 	}
+	if err := validateEntityName(name); err != nil {
+		http.Error(w, "Invalid shortcut name: "+err.Error(), http.StatusBadRequest)
+		return
+	}
 
 	shortcut := samlidp.Shortcut{
 		Name:              name,
@@ -70,6 +74,10 @@ func (h *WebHandler) handleShortcutRename(w http.ResponseWriter, r *http.Request
 	}
 	if newName == oldName {
 		http.Error(w, "New name is identical to the current name", http.StatusBadRequest)
+		return
+	}
+	if err := validateEntityName(newName); err != nil {
+		http.Error(w, "Invalid shortcut name: "+err.Error(), http.StatusBadRequest)
 		return
 	}
 

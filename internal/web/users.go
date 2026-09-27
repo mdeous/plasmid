@@ -61,6 +61,10 @@ func (h *WebHandler) handleUserCreate(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Username and password are required", http.StatusBadRequest)
 		return
 	}
+	if err := validateEntityName(username); err != nil {
+		http.Error(w, "Invalid username: "+err.Error(), http.StatusBadRequest)
+		return
+	}
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {

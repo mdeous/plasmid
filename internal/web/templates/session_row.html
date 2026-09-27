@@ -6,7 +6,7 @@
     <td>{{.CreateTime}}</td>
     <td>{{if .Expired}}<span class="badge badge-red">Expired</span> {{end}}{{.ExpireTime}}</td>
     <td>
-        <button class="secondary outline" hx-delete="/ui/sessions/{{.ID}}" hx-target="#session-{{.ID}}" hx-swap="outerHTML swap:0.3s" hx-confirm="Delete this session?">Delete</button>
+        <button class="secondary outline" hx-delete="/ui/sessions/{{urlquery .ID}}" hx-target="closest tr" hx-swap="outerHTML swap:0.3s" hx-confirm="Delete this session?">Delete</button>
     </td>
 </tr>
 {{end}}

@@ -52,6 +52,10 @@ func (h *WebHandler) handleServiceCreate(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "Name is required", http.StatusBadRequest)
 		return
 	}
+	if err := validateEntityName(name); err != nil {
+		http.Error(w, "Invalid service name: "+err.Error(), http.StatusBadRequest)
+		return
+	}
 
 	var metadataBytes []byte
 	if metadataXML := strings.TrimSpace(r.FormValue("metadata_xml")); metadataXML != "" {
