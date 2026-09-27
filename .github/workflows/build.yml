@@ -37,7 +37,7 @@ jobs:
           go-version: stable
 
       - name: Run tests
-        run: go test ./... -count=1
+        run: go test -race ./... -count=1
 
       - name: Compile code
         run: make
