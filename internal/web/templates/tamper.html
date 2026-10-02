@@ -1,7 +1,6 @@
 {{define "title"}}Tamper Configuration{{end}}
 {{define "content"}}
 <h1>SAML Tampering</h1>
-<p>Configure modifications to SAML assertions for security testing.</p>
 
 <form method="POST" action="/ui/tamper">
     <fieldset>
@@ -34,11 +33,7 @@
             <option value="{{.Value}}" {{if eq $.Config.SignKeyMode .Value}}selected{{end}}>{{.Label}}</option>
             {{end}}
         </select>
-        <small>
-            Re-signs the response with attacker key material to find out whether the SP
-            checks <em>which</em> certificate signed, or only that <em>a</em> signature verifies.
-            Needs a plaintext assertion — turn on &ldquo;Send assertion unencrypted&rdquo; below.
-        </small>
+        <small>Re-signs with attacker key material. Needs a plaintext assertion.</small>
     </fieldset>
 
     <fieldset>
@@ -49,15 +44,7 @@
             <option value="{{.Value}}" {{if eq $.Config.ParserDiffMode .Value}}selected{{end}}>{{.Label}}</option>
             {{end}}
         </select>
-        <small>
-            Emits a response that the SP&rsquo;s signature-checking parser and its
-            claim-reading parser read <em>differently</em>, so it verifies one element and
-            then trusts the claims of another. From
-            &ldquo;The Fragile Lock&rdquo; (PortSwigger, 2025); ruby-saml before 1.18.0 is
-            affected (CVE-2025-66568, CVE-2025-66567).
-            Set a NameID override as well, or there is nothing forged for the SP to report
-            back. Needs a plaintext assertion — turn on &ldquo;Send assertion unencrypted&rdquo; below.
-        </small>
+        <small>Needs a NameID override and a plaintext assertion.</small>
     </fieldset>
 
     <fieldset>
@@ -83,7 +70,7 @@
         <label>RelayState Override
             <input type="text" name="relay_state" value="{{.Config.RelayState}}" placeholder="Leave empty to keep original">
         </label>
-        <small>Rewritten in the form posted to the SP, so it applies to both SP-initiated and IdP-initiated flows. IdP-initiated logins usually carry no RelayState, so the override injects one.</small>
+        <small>RelayState is rewritten in the posted form, and injected when the flow carries none.</small>
     </fieldset>
 
     <fieldset>
@@ -108,19 +95,20 @@
 
     <fieldset>
         <legend>Assertion Encryption</legend>
-        <small>The IdP encrypts the assertion whenever the SP metadata carries a usable certificate. XSW and comment injection rewrite assertion XML, so they are skipped when it is encrypted.</small>
         <label>
             <input type="checkbox" name="send_unencrypted" {{if .Config.SendUnencrypted}}checked{{end}}>
             Send assertion unencrypted (still signed)
         </label>
+        <small>Attacks that rewrite the assertion are skipped while it is encrypted; the inspector records each one.</small>
     </fieldset>
 
+    <h2>Content Injection</h2>
+
     <fieldset>
-        <legend>Comment Injection</legend>
-        <small>Injects an XML comment inside the NameID value.</small>
+        <legend>Comments</legend>
         <label>
             <input type="checkbox" name="comment_injection" id="comment_injection" {{if .Config.CommentInjection}}checked{{end}}>
-            Enable Comment Injection
+            Enable comment injection
         </label>
         <div id="comment_fields" style="display:none;">
             <label>Character Position
@@ -131,11 +119,10 @@
     </fieldset>
 
     <fieldset>
-        <legend>XXE Injection</legend>
-        <small>Injects XML External Entity declarations into the SAML response to test for XXE vulnerabilities.</small>
+        <legend>XXE</legend>
         <label>
             <input type="checkbox" name="xxe_enabled" id="xxe_enabled" {{if .Config.XXEEnabled}}checked{{end}}>
-            Enable XXE Injection
+            Enable XXE injection
         </label>
         <div id="xxe_fields" style="display:none;">
             <label>XXE Type
@@ -164,7 +151,7 @@
     </fieldset>
 
     <fieldset>
-        <legend>Inject Attributes</legend>
+        <legend>Attributes</legend>
         <div id="inject-attrs">
             {{range .Config.InjectAttributes}}
             <div class="attr-row">
