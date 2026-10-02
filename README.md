@@ -105,7 +105,7 @@ at the root of the project folder.
 
 ### Listeners
 
-Plasmid binds two ports, and they are not interchangeable:
+Plasmid binds two ports:
 
 | Listener   | Default          | Carries                                                                 |
 | ---------- | ---------------- | ----------------------------------------------------------------------- |
@@ -118,10 +118,6 @@ Plasmid binds two ports, and they are not interchangeable:
 > port through your tunnel and leave the admin one bound to loopback. Anyone
 > who can reach the admin port can create users, register service providers,
 > and read every assertion captured by the inspector.
-
-The public listener 404s on admin paths and the admin listener 404s on SAML
-paths, so a tunnel pointed at the wrong port fails immediately rather than
-quietly working.
 
 ## Usage
 
