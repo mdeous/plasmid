@@ -25,12 +25,25 @@ include_subject_address: false
 # inspector. An SP that publishes an encryption certificate is asking for
 # encryption, so this is a deviation and is reported as a tamper modification.
 send_unencrypted: false
+# metadata_file is where the IdP metadata document is exported at startup.
+# Leave it empty to skip the export and serve the document on /metadata only.
+metadata_file: idp-metadata.xml
+# metadata_valid_days is how far out the metadata's validUntil is set. Zero
+# tracks the signing certificate's own expiry, so a pinned certificate and the
+# document advertising it cannot disagree. crewjam/saml would otherwise stamp
+# 48h here regardless of the certificate, which reads to an SP as the IdP
+# expiring in two days. Set a positive value to probe an SP that enforces
+# validUntil.
+metadata_valid_days: 0
 cert:
   ca_org: Example Org
   ca_country: FR
   ca_state: Ile de France
   ca_locality: Paris
+  ca_address: ""
   ca_postcode: 75001
+  # ca_exp_years is the generated certificate's own lifetime. It is also what
+  # metadata_valid_days defaults to following.
   ca_exp_years: 1
   key_size: 2048
   # certificate_file and key_file determine where the cert and priv key
@@ -41,7 +54,6 @@ cert:
 user:
   username: admin
   password: Password123
-  full_name: Admin User
   given_name: Admin
   surname: User
   email: admin@example.com
