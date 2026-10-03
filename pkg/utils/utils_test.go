@@ -1,6 +1,10 @@
 package utils
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/rsa"
 	"crypto/x509"
 	"math/big"
 	"net/http"
@@ -198,5 +202,46 @@ func TestFetchSPMetadata_URL(t *testing.T) {
 
 	if string(data) != xmlContent {
 		t.Errorf("fetched metadata does not match served content.\nexpected: %s\ngot: %s", xmlContent, string(data))
+	}
+}
+
+func TestKeyPairMatches(t *testing.T) {
+	key, err := GeneratePrivateKey(2048)
+	if err != nil {
+		t.Fatalf("generate key: %v", err)
+	}
+	cert, err := GenerateCertificate(key, "TestOrg", "US", "California", "San Francisco", "", "94105", 1)
+	if err != nil {
+		t.Fatalf("generate certificate: %v", err)
+	}
+
+	otherKey, err := GeneratePrivateKey(2048)
+	if err != nil {
+		t.Fatalf("generate second key: %v", err)
+	}
+
+	ecKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatalf("generate ec key: %v", err)
+	}
+
+	tests := []struct {
+		name string
+		key  *rsa.PrivateKey
+		cert *x509.Certificate
+		want bool
+	}{
+		{"matching pair", key, cert, true},
+		{"certificate from another key", otherKey, cert, false},
+		{"non-rsa certificate", key, &x509.Certificate{PublicKey: &ecKey.PublicKey}, false},
+		{"nil key", nil, cert, false},
+		{"nil certificate", key, nil, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := KeyPairMatches(tt.key, tt.cert); got != tt.want {
+				t.Errorf("KeyPairMatches() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }

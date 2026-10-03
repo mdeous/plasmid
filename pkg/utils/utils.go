@@ -130,6 +130,21 @@ func GenerateCertificate(
 	return cert, nil
 }
 
+// KeyPairMatches reports whether cert carries the public half of key. The two
+// files are loaded independently, so a half-persisted pair otherwise has the
+// IdP signing with a key the published certificate does not match, which every
+// SP rejects without naming a cause.
+func KeyPairMatches(key *rsa.PrivateKey, cert *x509.Certificate) bool {
+	if key == nil || cert == nil {
+		return false
+	}
+	certPub, ok := cert.PublicKey.(*rsa.PublicKey)
+	if !ok {
+		return false
+	}
+	return certPub.Equal(&key.PublicKey)
+}
+
 func FetchSPMetadata(source string) ([]byte, error) {
 	if strings.HasPrefix(source, "http://") || strings.HasPrefix(source, "https://") {
 		client := &http.Client{Timeout: 30 * time.Second}
