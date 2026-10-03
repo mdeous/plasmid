@@ -68,6 +68,22 @@ function toggleSelectValueVisibility(selectId, targetId, showValue) {
     update();
 }
 
+function requireEither(firstId, secondId) {
+    var first = document.getElementById(firstId);
+    var second = document.getElementById(secondId);
+    if (!first || !second) return;
+    function update() {
+        first.required = second.value.trim() === "";
+        second.required = first.value.trim() === "";
+    }
+    first.addEventListener("input", update);
+    second.addEventListener("input", update);
+    if (first.form) {
+        first.form.addEventListener("reset", function() { setTimeout(update, 0); });
+    }
+    update();
+}
+
 function applyInspectorFilters() {
     var dir = (document.getElementById("filter-direction") || {}).value || "";
     var text = ((document.getElementById("filter-text") || {}).value || "").toLowerCase().trim();
@@ -239,5 +255,6 @@ document.addEventListener("DOMContentLoaded", function() {
     toggleVisibility("comment_injection", "comment_fields");
     toggleSelectVisibility("xsw_variant", "xsw_fields", "");
     toggleSelectValueVisibility("xxe_type", "xxe_custom_field", "custom");
+    requireEither("service-metadata-source", "service-metadata-xml");
     applyInspectorFilters();
 });

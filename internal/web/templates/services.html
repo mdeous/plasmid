@@ -6,11 +6,11 @@
     <summary role="button" class="secondary">Add Service Provider</summary>
     <form hx-post="/ui/services" hx-target="#service-table-body" hx-swap="beforeend" hx-on::after-request="if(event.detail.successful) { this.reset(); var es = document.querySelector('#service-table-body .empty-state-row'); if (es) es.remove(); }">
         <label>Name <input type="text" name="name" required></label>
-        <label>Metadata Source
-            <input type="text" name="metadata" placeholder="URL or paste XML below" required>
+        <label>Metadata URL or file path
+            <input type="text" id="service-metadata-source" name="metadata" placeholder="https://sp.example.com/saml/metadata">
         </label>
         <label>Or paste metadata XML
-            <textarea name="metadata_xml" rows="6" placeholder="Paste SP metadata XML here (optional, overrides URL above)"></textarea>
+            <textarea id="service-metadata-xml" name="metadata_xml" rows="6" placeholder="Paste SP metadata XML here (takes priority over the source above)"></textarea>
         </label>
         <div><button type="submit" class="inline-submit">Register SP</button></div>
     </form>
