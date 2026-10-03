@@ -139,6 +139,13 @@ func FetchSPMetadata(source string) ([]byte, error) {
 		}
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
+			// The body is where an SP endpoint explains itself: a 403, or an HTML
+			// login page served instead of metadata.
+			body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+			detail := strings.TrimSpace(string(body))
+			if detail != "" {
+				return nil, fmt.Errorf("unexpected status %d fetching SP metadata from '%s': %s", resp.StatusCode, source, detail)
+			}
 			return nil, fmt.Errorf("unexpected status %d fetching SP metadata from '%s'", resp.StatusCode, source)
 		}
 		return io.ReadAll(resp.Body)

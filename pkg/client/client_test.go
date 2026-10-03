@@ -2,11 +2,13 @@ package client
 
 import (
 	"encoding/json"
+	"encoding/xml"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/crewjam/saml"
 	idp "github.com/crewjam/saml/samlidp"
 )
 
@@ -204,6 +206,72 @@ func TestServiceList(t *testing.T) {
 	}
 	if services[1] != "otherapp" {
 		t.Errorf("expected second service 'otherapp', got '%s'", services[1])
+	}
+}
+
+// sp-add used to stream the raw document and let the server pick one entity out
+// of it. It now agrees with the dashboard: one service per SP entity, same names.
+func TestServiceAdd(t *testing.T) {
+	metadata := `<md:EntitiesDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata">
+  <md:EntityDescriptor entityID="https://first.example.com">
+    <md:SPSSODescriptor><md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://first.example.com/acs"/></md:SPSSODescriptor>
+  </md:EntityDescriptor>
+  <md:EntityDescriptor entityID="https://second.example.com">
+    <md:SPSSODescriptor><md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://second.example.com/acs"/></md:SPSSODescriptor>
+  </md:EntityDescriptor>
+</md:EntitiesDescriptor>`
+
+	metadataSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/xml")
+		_, _ = w.Write([]byte(metadata))
+	}))
+	defer metadataSrv.Close()
+
+	var puts []string
+	entities := map[string]string{}
+	idpSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPut {
+			t.Errorf("expected PUT, got %s", r.Method)
+		}
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Errorf("reading body: %v", err)
+		}
+		// Each PUT must carry one entity, not the whole container.
+		var md saml.EntityDescriptor
+		if err := xml.Unmarshal(body, &md); err != nil {
+			t.Errorf("PUT %s: body is not a single EntityDescriptor: %v", r.URL.Path, err)
+		}
+		puts = append(puts, r.URL.Path)
+		entities[r.URL.Path] = md.EntityID
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer idpSrv.Close()
+
+	c, err := New(idpSrv.URL)
+	if err != nil {
+		t.Fatalf("unexpected error creating client: %v", err)
+	}
+
+	names, err := c.ServiceAdd("fed", metadataSrv.URL)
+	if err != nil {
+		t.Fatalf("unexpected error adding service: %v", err)
+	}
+
+	if len(names) != 2 || names[0] != "fed" || names[1] != "fed-2" {
+		t.Fatalf("expected names [fed fed-2], got %v", names)
+	}
+	if len(puts) != 2 {
+		t.Fatalf("expected 2 PUTs, got %v", puts)
+	}
+	want := map[string]string{
+		"/services/fed":   "https://first.example.com",
+		"/services/fed-2": "https://second.example.com",
+	}
+	for path, entityID := range want {
+		if entities[path] != entityID {
+			t.Errorf("PUT %s: expected entity %q, got %q", path, entityID, entities[path])
+		}
 	}
 }
 

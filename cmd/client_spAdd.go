@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"fmt"
+
 	"github.com/mdeous/plasmid/pkg/client"
 	"github.com/mdeous/plasmid/pkg/config"
 	"github.com/spf13/cobra"
@@ -22,8 +24,14 @@ var spAddCmd = &cobra.Command{
 		handleError(err)
 
 		// create service
-		err = c.ServiceAdd(service, metadataUrl)
+		names, err := c.ServiceAdd(service, metadataUrl)
 		handleError(err)
+
+		// metadata wrapped in an EntitiesDescriptor can describe more than one SP
+		fmt.Println("Registered service providers:")
+		for _, name := range names {
+			fmt.Println("- ", name)
+		}
 	},
 }
 

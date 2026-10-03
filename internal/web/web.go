@@ -13,7 +13,6 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
-	"unicode"
 
 	"github.com/crewjam/saml/samlidp"
 	internalsml "github.com/mdeous/plasmid/internal/saml"
@@ -149,24 +148,6 @@ func (h *WebHandler) handleCertPEM(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/x-pem-file")
 	w.Header().Set("Content-Disposition", `attachment; filename="plasmid-idp.pem"`)
 	_ = pem.Encode(w, &pem.Block{Type: "CERTIFICATE", Bytes: h.cert.Raw})
-}
-
-// validateEntityName rejects names that would break the row actions generated
-// for them: the UI routes match a single path segment, so a name containing a
-// slash can never be addressed again once stored.
-func validateEntityName(name string) error {
-	if name == "" {
-		return fmt.Errorf("name is required")
-	}
-	if strings.ContainsRune(name, '/') {
-		return fmt.Errorf("name must not contain '/'")
-	}
-	for _, r := range name {
-		if unicode.IsSpace(r) || unicode.IsControl(r) {
-			return fmt.Errorf("name must not contain whitespace or control characters")
-		}
-	}
-	return nil
 }
 
 func (h *WebHandler) renderPage(w http.ResponseWriter, name string, data map[string]any) {

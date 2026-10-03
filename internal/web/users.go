@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/crewjam/saml/samlidp"
+	"github.com/mdeous/plasmid/pkg/utils"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -61,7 +62,7 @@ func (h *WebHandler) handleUserCreate(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Username and password are required", http.StatusBadRequest)
 		return
 	}
-	if err := validateEntityName(username); err != nil {
+	if err := utils.ValidateEntityName(username); err != nil {
 		http.Error(w, "Invalid username: "+err.Error(), http.StatusBadRequest)
 		return
 	}

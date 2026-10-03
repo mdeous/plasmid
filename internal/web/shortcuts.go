@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/crewjam/saml/samlidp"
+	"github.com/mdeous/plasmid/pkg/utils"
 )
 
 type shortcutView struct {
@@ -44,7 +45,7 @@ func (h *WebHandler) handleShortcutCreate(w http.ResponseWriter, r *http.Request
 		http.Error(w, "Name and SP Entity ID are required", http.StatusBadRequest)
 		return
 	}
-	if err := validateEntityName(name); err != nil {
+	if err := utils.ValidateEntityName(name); err != nil {
 		http.Error(w, "Invalid shortcut name: "+err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -76,7 +77,7 @@ func (h *WebHandler) handleShortcutRename(w http.ResponseWriter, r *http.Request
 		http.Error(w, "New name is identical to the current name", http.StatusBadRequest)
 		return
 	}
-	if err := validateEntityName(newName); err != nil {
+	if err := utils.ValidateEntityName(newName); err != nil {
 		http.Error(w, "Invalid shortcut name: "+err.Error(), http.StatusBadRequest)
 		return
 	}

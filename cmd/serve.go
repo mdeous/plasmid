@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/rsa"
 	"crypto/x509"
-	"encoding/xml"
 	"errors"
 	"fmt"
 	"net/url"
@@ -12,7 +11,6 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/crewjam/saml"
 	"github.com/crewjam/saml/samlidp"
 	"github.com/mdeous/plasmid/internal/store"
 	"github.com/mdeous/plasmid/pkg/config"
@@ -109,19 +107,22 @@ var serveCmd = &cobra.Command{
 		}
 
 		if metadataSource := viper.GetString(config.SPMetadata); metadataSource != "" {
-			spName := viper.GetString(config.SPName)
-			logr.Info("registering service provider", "name", spName)
 			metadataBytes, fetchErr := utils.FetchSPMetadata(metadataSource)
 			if fetchErr != nil {
 				return fetchErr
 			}
-			var metadata saml.EntityDescriptor
-			if err = xml.Unmarshal(metadataBytes, &metadata); err != nil {
-				return fmt.Errorf("unable to parse SP metadata: %v", err)
+			services, parseErr := utils.ParseSPServices(viper.GetString(config.SPName), metadataBytes)
+			if parseErr != nil {
+				return parseErr
 			}
-			service := samlidp.Service{Name: spName, Metadata: metadata}
-			if err = idpStore.Put("/services/"+spName, &service); err != nil {
-				return err
+			// Written straight to the store rather than through HandlePutService,
+			// which does not exist yet; samlidp.New loads them on startup.
+			for _, svc := range services {
+				logr.Info("registering service provider", "name", svc.Name, "entity_id", svc.Descriptor.EntityID)
+				service := samlidp.Service{Name: svc.Name, Metadata: svc.Descriptor}
+				if err = idpStore.Put("/services/"+svc.Name, &service); err != nil {
+					return err
+				}
 			}
 		}
 

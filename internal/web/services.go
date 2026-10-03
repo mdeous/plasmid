@@ -2,12 +2,10 @@ package web
 
 import (
 	"bytes"
-	"encoding/xml"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 
-	"github.com/crewjam/saml"
 	"github.com/crewjam/saml/samlidp"
 	"github.com/mdeous/plasmid/pkg/utils"
 )
@@ -47,12 +45,10 @@ func (h *WebHandler) handleServiceCreate(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	// Checked before fetching so a bad name fails without the network round-trip;
+	// ParseSPServices validates again for the other callers.
 	name := strings.TrimSpace(r.FormValue("name"))
-	if name == "" {
-		http.Error(w, "Name is required", http.StatusBadRequest)
-		return
-	}
-	if err := validateEntityName(name); err != nil {
+	if err := utils.ValidateEntityName(name); err != nil {
 		http.Error(w, "Invalid service name: "+err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -73,35 +69,43 @@ func (h *WebHandler) handleServiceCreate(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	var metadata saml.EntityDescriptor
-	if err := xml.Unmarshal(metadataBytes, &metadata); err != nil {
+	services, err := utils.ParseSPServices(name, metadataBytes)
+	if err != nil {
 		h.logger.Error("failed to parse SP metadata", "error", err)
-		http.Error(w, "Invalid metadata XML: "+err.Error(), http.StatusBadRequest)
+		http.Error(w, "Invalid metadata: "+err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	// Register with the IdP via its handler, which updates both the store
-	// and the in-memory service providers map used for SAML lookups.
-	putReq := httptest.NewRequest("PUT", "/services/"+name, bytes.NewReader(metadataBytes))
-	putReq.SetPathValue("id", name)
-	rec := httptest.NewRecorder()
-	h.idpServer.HandlePutService(rec, putReq)
-	if rec.Code >= 400 {
-		h.logger.Error("failed to register service with IdP", "name", name, "status", rec.Code)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
+	for _, svc := range services {
+		// Register with the IdP via its handler, which updates both the store
+		// and the in-memory service providers map used for SAML lookups.
+		putReq := httptest.NewRequest("PUT", "/services/"+svc.Name, bytes.NewReader(svc.XML))
+		putReq.SetPathValue("id", svc.Name)
+		rec := httptest.NewRecorder()
+		h.idpServer.HandlePutService(rec, putReq)
+		if rec.Code >= 400 {
+			// Entities registered before this one stay registered; they show up
+			// on the next page load.
+			h.logger.Error("failed to register service with IdP", "name", svc.Name, "status", rec.Code)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+
+		// Re-store with the Name field set (HandlePutService doesn't populate it).
+		service := samlidp.Service{Name: svc.Name, Metadata: svc.Descriptor}
+		if err := h.store.Put("/services/"+svc.Name, &service); err != nil {
+			h.logger.Error("failed to update service record", "error", err)
+		}
 	}
 
-	// Re-store with the Name field set (HandlePutService doesn't populate it).
-	service := samlidp.Service{Name: name, Metadata: metadata}
-	if err := h.store.Put("/services/"+name, &service); err != nil {
-		h.logger.Error("failed to update service record", "error", err)
+	// Rows go out only once every entity is registered: renderPartial writes to
+	// the response, so a failure after the first row could no longer set a status.
+	for _, svc := range services {
+		h.renderPartial(w, "service_row", serviceView{
+			Name:     svc.Name,
+			EntityID: svc.Descriptor.EntityID,
+		})
 	}
-
-	h.renderPartial(w, "service_row", serviceView{
-		Name:     name,
-		EntityID: metadata.EntityID,
-	})
 }
 
 func (h *WebHandler) handleServiceDelete(w http.ResponseWriter, r *http.Request) {

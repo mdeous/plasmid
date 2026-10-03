@@ -236,6 +236,10 @@ please refer to the help of each of those to know more about their usage and the
 ./plasmid client sp-add -m "<metadata_url_or_file>" -s "<service-name>"
 ```
 
+  The metadata may be a single `EntityDescriptor` or an `EntitiesDescriptor` wrapping
+  several of them, which is what some providers serve. Every service provider it
+  describes is registered, named `<service-name>`, `<service-name>-2`, and so on.
+
 - Creating a new IdP-initiated login link:
 
 ```bash
