@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/crewjam/saml/samlidp"
 	"github.com/mdeous/plasmid/internal/store"
@@ -20,8 +21,6 @@ import (
 	"github.com/spf13/viper"
 	"golang.org/x/crypto/bcrypt"
 )
-
-const IdpMetadataFile = "idp-metadata.xml"
 
 var serveCmd = &cobra.Command{
 	Use:     "serve",
@@ -34,7 +33,7 @@ var serveCmd = &cobra.Command{
 			err     error
 		)
 
-		keyFile := viper.GetString(config.CertKeyFile)
+		keyFile := stringFlagOrConfig(cmd, "key-file", config.CertKeyFile)
 		_, err = os.Stat(keyFile)
 		if errors.Is(err, os.ErrNotExist) {
 			logr.Info("generating private key", "file", keyFile)
@@ -53,7 +52,7 @@ var serveCmd = &cobra.Command{
 			}
 		}
 
-		certFile := viper.GetString(config.CertCertificateFile)
+		certFile := stringFlagOrConfig(cmd, "cert-file", config.CertCertificateFile)
 		_, err = os.Stat(certFile)
 		if errors.Is(err, os.ErrNotExist) {
 			logr.Info("generating certificate", "file", certFile)
@@ -78,6 +77,35 @@ var serveCmd = &cobra.Command{
 			cert, err = utils.LoadCertificate(certFile)
 			if err != nil {
 				return err
+			}
+		}
+
+		// The two files are stat'd independently, so a surviving certificate
+		// beside a missing key leaves a fresh key signing under the old
+		// certificate. Every SP rejects every assertion and names no cause, so
+		// fail here where both paths are known and can be pointed at.
+		if !utils.KeyPairMatches(privKey, cert) {
+			return fmt.Errorf(
+				"certificate '%s' does not match private key '%s': "+
+					"delete both and restart to generate a fresh pair, or run 'plasmid gencert --force'",
+				certFile, keyFile,
+			)
+		}
+
+		// An expired certificate is a legitimate thing to point at an SP, so
+		// warn rather than refuse.
+		metadataValidDays := viper.GetInt(config.MetadataValidDays)
+		if time.Now().After(cert.NotAfter) {
+			logr.Warn("certificate has expired", "file", certFile, "not_after", cert.NotAfter)
+		} else if metadataValidDays > 0 {
+			// Only reachable with an explicit window: the default derives
+			// validUntil from NotAfter, so the two cannot disagree.
+			// UTC to match what Plasmid.Metadata actually publishes.
+			if validUntil := time.Now().UTC().AddDate(0, 0, metadataValidDays); validUntil.After(cert.NotAfter) {
+				logr.Warn(
+					"metadata advertises validity past the certificate expiry",
+					"valid_until", validUntil, "not_after", cert.NotAfter,
+				)
 			}
 		}
 
@@ -146,20 +174,27 @@ var serveCmd = &cobra.Command{
 			SignatureMethod:       viper.GetString(config.SignatureMethod),
 			IncludeSubjectAddress: viper.GetBool(config.IncludeSubjectAddr),
 			SendUnencrypted:       viper.GetBool(config.SendUnencrypted),
+			MetadataValidDays:     metadataValidDays,
 		})
 		if err != nil {
 			return err
 		}
 
-		// save metadata
-		meta, err := idp.Metadata()
-		if err != nil {
-			return err
+		// save metadata. An empty path skips the export, leaving GET /metadata
+		// as the only way to fetch it, which keeps the working directory clean
+		// when the endpoint is all that is wanted.
+		if metadataFile := stringFlagOrConfig(cmd, "metadata-file", config.MetadataFile); metadataFile != "" {
+			meta, err := idp.Metadata()
+			if err != nil {
+				return err
+			}
+			if err = os.WriteFile(metadataFile, meta, 0644); err != nil {
+				return err
+			}
+			logr.Info("metadata saved", "file", metadataFile)
+		} else {
+			logr.Info("metadata export skipped, serving it on /metadata only")
 		}
-		if err = os.WriteFile(IdpMetadataFile, meta, 0644); err != nil {
-			return err
-		}
-		logr.Info("metadata saved", "file", IdpMetadataFile)
 
 		// start server with graceful shutdown
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -224,6 +259,28 @@ func init() {
 		ConfigField: config.SignatureMethod,
 	}
 	f.BindString()
+	f = &Flag{
+		Command:     serveCmd,
+		Name:        "metadata-file",
+		Usage:       "file the IdP metadata document is exported to, empty to skip the export",
+		ConfigField: config.MetadataFile,
+	}
+	f.BindString()
+	f = &Flag{
+		Command:     serveCmd,
+		Name:        "metadata-valid-days",
+		Usage:       "days the metadata advertises itself valid for, 0 to track the certificate expiry",
+		ConfigField: config.MetadataValidDays,
+	}
+	f.BindInt()
+	// cert-file and key-file are registered unbound, and resolved through
+	// stringFlagOrConfig. gencert already binds these two config keys and
+	// viper.BindPFlag keeps only the last binding, so binding them here —
+	// serve.go's init runs after gencert.go's — would silently stop
+	// 'gencert -k' and 'gencert -f' from reaching viper. No shorthands either:
+	// -f is taken by 'client user-add'.
+	serveCmd.Flags().String("cert-file", "", "certificate file to load or generate")
+	serveCmd.Flags().String("key-file", "", "private key file to load or generate")
 	f = &Flag{
 		Command:     serveCmd,
 		Name:        "admin-host",

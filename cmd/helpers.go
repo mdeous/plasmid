@@ -100,3 +100,15 @@ func clientBaseURL(cmd *cobra.Command) string {
 	}
 	return fmt.Sprintf("http://%s:%d", host, viper.GetInt(config.AdminPort))
 }
+
+// stringFlagOrConfig resolves a flag that deliberately is not bound to viper:
+// an explicit flag wins, otherwise the config key does. Needed wherever two
+// commands want the same config key, because viper.BindPFlag keeps only the
+// last binding — gencert already binds the cert and key paths, so binding them
+// again from serve would silently stop gencert's own flags reaching viper.
+func stringFlagOrConfig(cmd *cobra.Command, flagName, configKey string) string {
+	if f := cmd.Flags().Lookup(flagName); f != nil && f.Changed {
+		return f.Value.String()
+	}
+	return viper.GetString(configKey)
+}
