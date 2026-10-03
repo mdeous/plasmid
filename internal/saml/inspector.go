@@ -21,13 +21,18 @@ type SAMLExchange struct {
 	RelayState      string
 	Signed          bool
 	AssertionSigned bool
-	Tampered        bool
-	Modifications   []TamperModification
-	Attributes      []Attribute
-	RawXML          string
-	RemoteAddr      string
-	ACSEndpoint     string
-	RawBase64       string
+	// AssertionEncrypted records that the assertion arrived inside an
+	// EncryptedAssertion, so AssertionSigned says nothing about it: the
+	// signature is sealed under the SP's encryption key and the inspector
+	// cannot see it. Reporting a plain "No" there read as a signing failure.
+	AssertionEncrypted bool
+	Tampered           bool
+	Modifications      []TamperModification
+	Attributes         []Attribute
+	RawXML             string
+	RemoteAddr         string
+	ACSEndpoint        string
+	RawBase64          string
 }
 
 type Inspector struct {

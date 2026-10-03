@@ -16,7 +16,7 @@
     <tr><th>Remote</th><td>{{.RemoteAddr}}</td></tr>
     <tr><th>Response Signed</th><td>{{if .Signed}}Yes{{else}}No{{end}}</td></tr>
     {{if eq .Direction "Response"}}
-    <tr><th>Assertion Signed</th><td>{{if .AssertionSigned}}Yes{{else}}<strong>No</strong>{{end}}</td></tr>
+    <tr><th>Assertion Signed</th><td>{{if .AssertionEncrypted}}Encrypted (signature not visible){{else if .AssertionSigned}}Yes{{else}}<strong>No</strong>{{end}}</td></tr>
     {{end}}
 </table>
 {{if .Tampered}}

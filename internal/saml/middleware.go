@@ -215,6 +215,7 @@ func captureOutbound(inspector *Inspector, tamperConfig *TamperConfig, logger *s
 	var response crewsaml.Response
 	signed := false
 	assertionSigned := false
+	assertionEncrypted := false
 	nameID := ""
 	sp := ""
 	var attrs []Attribute
@@ -224,6 +225,7 @@ func captureOutbound(inspector *Inspector, tamperConfig *TamperConfig, logger *s
 	} else {
 		signed = response.Signature != nil
 		sp = response.Destination
+		assertionEncrypted = response.EncryptedAssertion != nil
 		if response.EncryptedAssertion == nil && response.Assertion != nil {
 			assertion := response.Assertion
 			assertionSigned = assertion.Signature != nil
@@ -278,20 +280,21 @@ func captureOutbound(inspector *Inspector, tamperConfig *TamperConfig, logger *s
 	}
 
 	exchange := SAMLExchange{
-		Direction:       "Response",
-		Endpoint:        r.URL.Path,
-		ServiceProvider: sp,
-		NameID:          nameID,
-		RelayState:      relayState,
-		RemoteAddr:      r.RemoteAddr,
-		RawXML:          formatXML(rawXML),
-		Signed:          signed,
-		AssertionSigned: assertionSigned,
-		Tampered:        tampered,
-		Modifications:   mods,
-		Attributes:      attrs,
-		ACSEndpoint:     acsEndpoint,
-		RawBase64:       rawBase64,
+		Direction:          "Response",
+		Endpoint:           r.URL.Path,
+		ServiceProvider:    sp,
+		NameID:             nameID,
+		RelayState:         relayState,
+		RemoteAddr:         r.RemoteAddr,
+		RawXML:             formatXML(rawXML),
+		Signed:             signed,
+		AssertionSigned:    assertionSigned,
+		AssertionEncrypted: assertionEncrypted,
+		Tampered:           tampered,
+		Modifications:      mods,
+		Attributes:         attrs,
+		ACSEndpoint:        acsEndpoint,
+		RawBase64:          rawBase64,
 	}
 	inspector.Record(exchange)
 }

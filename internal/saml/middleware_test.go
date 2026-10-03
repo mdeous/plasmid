@@ -171,3 +171,65 @@ func TestFormatXMLPassesThroughUnparseableInput(t *testing.T) {
 		t.Errorf("expected unparseable input to be returned unchanged, got: %s", got)
 	}
 }
+
+// An encrypted assertion is reported as encrypted rather than as unsigned. The
+// library signs the assertion before sealing it, so a plain "No" here read as a
+// signing failure and sent an operator chasing a problem that did not exist.
+func TestCaptureOutboundMarksEncryptedAssertion(t *testing.T) {
+	response := `<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"` +
+		` xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" ID="id-1"` +
+		` Destination="https://sp.example.com/acs">` +
+		`<saml:Issuer>https://idp.example.com/metadata</saml:Issuer>` +
+		`<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#"><ds:SignatureValue/></ds:Signature>` +
+		`<saml:EncryptedAssertion><xenc:EncryptedData` +
+		` xmlns:xenc="http://www.w3.org/2001/04/xmlenc#"/></saml:EncryptedAssertion>` +
+		`</samlp:Response>`
+	body := fmt.Sprintf(`<form><input name="SAMLResponse" value="%s" /></form>`,
+		base64.StdEncoding.EncodeToString([]byte(response)))
+
+	inspector := NewInspector(10)
+	req := httptest.NewRequest(http.MethodGet, "/login/sp/testsp", nil)
+	captureOutbound(inspector, nil, slog.Default(), req, []byte(body))
+
+	exchanges := inspector.List()
+	if len(exchanges) != 1 {
+		t.Fatalf("expected one recorded exchange, got %d", len(exchanges))
+	}
+	ex := exchanges[0]
+	if !ex.AssertionEncrypted {
+		t.Error("expected AssertionEncrypted to be set for an EncryptedAssertion")
+	}
+	if ex.AssertionSigned {
+		t.Error("expected AssertionSigned to stay false: the signature is not visible")
+	}
+	if !ex.Signed {
+		t.Error("expected the response signature to still be reported")
+	}
+}
+
+// A plaintext signed assertion is still reported as signed, not as encrypted.
+func TestCaptureOutboundMarksPlaintextAssertionSigned(t *testing.T) {
+	response := `<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"` +
+		` xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" ID="id-1">` +
+		`<saml:Assertion ID="id-2">` +
+		`<saml:Subject><saml:NameID>alice@example.com</saml:NameID></saml:Subject>` +
+		`<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#"><ds:SignatureValue/></ds:Signature>` +
+		`</saml:Assertion></samlp:Response>`
+	body := fmt.Sprintf(`<form><input name="SAMLResponse" value="%s" /></form>`,
+		base64.StdEncoding.EncodeToString([]byte(response)))
+
+	inspector := NewInspector(10)
+	req := httptest.NewRequest(http.MethodGet, "/login/sp/testsp", nil)
+	captureOutbound(inspector, nil, slog.Default(), req, []byte(body))
+
+	ex := inspector.List()[0]
+	if ex.AssertionEncrypted {
+		t.Error("expected AssertionEncrypted to stay false for a plaintext assertion")
+	}
+	if !ex.AssertionSigned {
+		t.Error("expected AssertionSigned to be set")
+	}
+	if ex.NameID != "alice@example.com" {
+		t.Errorf("expected the NameID to be read, got %q", ex.NameID)
+	}
+}
