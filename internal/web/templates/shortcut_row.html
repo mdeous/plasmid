@@ -1,6 +1,8 @@
 {{define "shortcut_row"}}
 <tr id="shortcut-{{.Name}}">
     <td>{{.Name}}</td>
+    <td>{{if .Registered}}{{.ServiceName}}{{else}}<code>{{.EntityID}}</code> <small>(unregistered)</small>{{end}}</td>
+    <td>{{.RelayStateLabel}}</td>
     <td>
         <code>{{.LoginURL}}</code>
         <button class="copy-btn secondary outline" onclick="copyToClipboard('{{.LoginURL}}', this)">Copy</button>

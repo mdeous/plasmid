@@ -65,6 +65,11 @@ function toggleSelectValueVisibility(selectId, targetId, showValue) {
         target.style.display = sel.value === showValue ? "" : "none";
     }
     sel.addEventListener("change", update);
+    // An htmx add-form resets itself after a successful POST, which restores
+    // the select without firing "change".
+    if (sel.form) {
+        sel.form.addEventListener("reset", function() { setTimeout(update, 0); });
+    }
     update();
 }
 
@@ -151,7 +156,7 @@ function showConfirmDialog(message, onConfirm) {
 var emptyStateSlots = {
     "user-table-body": { colspan: 6, message: "No users yet. Add one above to enable SAML logins." },
     "service-table-body": { colspan: 3, message: "No service providers registered. Add one above by URL or pasted metadata XML." },
-    "shortcut-table-body": { colspan: 3, message: "No shortcuts yet. Create one to bookmark an IdP-initiated login URL." }
+    "shortcut-table-body": { colspan: 5, message: "No shortcuts yet. Create one to bookmark an IdP-initiated login URL." }
 };
 
 function refreshEmptyState(tbodyId) {
@@ -255,6 +260,7 @@ document.addEventListener("DOMContentLoaded", function() {
     toggleVisibility("comment_injection", "comment_fields");
     toggleSelectVisibility("xsw_variant", "xsw_fields", "");
     toggleSelectValueVisibility("xxe_type", "xxe_custom_field", "custom");
+    toggleSelectValueVisibility("relay_state_mode", "relay_state_fixed_field", "fixed");
     requireEither("service-metadata-source", "service-metadata-xml");
     applyInspectorFilters();
 });

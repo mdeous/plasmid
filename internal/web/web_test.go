@@ -434,3 +434,215 @@ func TestHandleServiceCreateRejectsBadName(t *testing.T) {
 		t.Errorf("expected no services registered, got %v", names)
 	}
 }
+
+func newShortcutTestHandler(t *testing.T) (*WebHandler, *samlidp.MemoryStore, *http.ServeMux) {
+	t.Helper()
+	store := &samlidp.MemoryStore{}
+	// The shortcut handlers only read the store, so the nil idpServer the other
+	// tests use is enough here.
+	h, err := NewWebHandler(store, nil, slog.Default(), "http://127.0.0.1:8000", nil)
+	if err != nil {
+		t.Fatalf("NewWebHandler: %v", err)
+	}
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	return h, store, mux
+}
+
+func seedService(t *testing.T, store *samlidp.MemoryStore, name, entityID string) {
+	t.Helper()
+	service := samlidp.Service{Name: name, Metadata: saml.EntityDescriptor{EntityID: entityID}}
+	if err := store.Put("/services/"+name, &service); err != nil {
+		t.Fatalf("seed service: %v", err)
+	}
+}
+
+func postShortcut(t *testing.T, mux *http.ServeMux, form url.Values) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest("POST", "/ui/shortcuts", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	return w
+}
+
+// The dashboard form has to produce the same three RelayState shapes as
+// "client login-add": unset, a fixed value, or the URL suffix.
+func TestShortcutCreateRelayStateModes(t *testing.T) {
+	const entityID = "https://sp.example.com/metadata"
+
+	tests := []struct {
+		name       string
+		form       url.Values
+		wantRelay  *string
+		wantSuffix bool
+	}{
+		{
+			name:       "none",
+			form:       url.Values{"name": {"plain"}, "entity_id": {entityID}, "relay_state_mode": {""}},
+			wantRelay:  nil,
+			wantSuffix: false,
+		},
+		{
+			name:       "fixed",
+			form:       url.Values{"name": {"fixed"}, "entity_id": {entityID}, "relay_state_mode": {"fixed"}, "relay_state": {"/dashboard"}},
+			wantRelay:  ptr("/dashboard"),
+			wantSuffix: false,
+		},
+		{
+			// A blank relay_state must leave the pointer nil, or samlidp would
+			// resolve it ahead of the suffix flag and send "".
+			name:       "suffix",
+			form:       url.Values{"name": {"suffixed"}, "entity_id": {entityID}, "relay_state_mode": {"suffix"}, "relay_state": {""}},
+			wantRelay:  nil,
+			wantSuffix: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, store, mux := newShortcutTestHandler(t)
+			seedService(t, store, "testsp", entityID)
+
+			if w := postShortcut(t, mux, tc.form); w.Code != http.StatusOK {
+				t.Fatalf("POST /ui/shortcuts: expected 200, got %d (%s)", w.Code, w.Body.String())
+			}
+
+			var got samlidp.Shortcut
+			if err := store.Get("/shortcuts/"+tc.form.Get("name"), &got); err != nil {
+				t.Fatalf("Get shortcut: %v", err)
+			}
+			if got.ServiceProviderID != entityID {
+				t.Errorf("ServiceProviderID = %q, want %q", got.ServiceProviderID, entityID)
+			}
+			switch {
+			case tc.wantRelay == nil && got.RelayState != nil:
+				t.Errorf("RelayState = %q, want nil", *got.RelayState)
+			case tc.wantRelay != nil && got.RelayState == nil:
+				t.Errorf("RelayState = nil, want %q", *tc.wantRelay)
+			case tc.wantRelay != nil && *got.RelayState != *tc.wantRelay:
+				t.Errorf("RelayState = %q, want %q", *got.RelayState, *tc.wantRelay)
+			}
+			if got.URISuffixAsRelayState != tc.wantSuffix {
+				t.Errorf("URISuffixAsRelayState = %v, want %v", got.URISuffixAsRelayState, tc.wantSuffix)
+			}
+		})
+	}
+}
+
+func ptr(s string) *string { return &s }
+
+func TestShortcutCreateRejectsBadInput(t *testing.T) {
+	const entityID = "https://sp.example.com/metadata"
+
+	tests := []struct {
+		name string
+		form url.Values
+	}{
+		{"fixed mode with no value", url.Values{"name": {"a"}, "entity_id": {entityID}, "relay_state_mode": {"fixed"}, "relay_state": {"  "}}},
+		{"mode the form never offered", url.Values{"name": {"b"}, "entity_id": {entityID}, "relay_state_mode": {"bogus"}}},
+		{"unregistered entity id", url.Values{"name": {"c"}, "entity_id": {"https://typo.example.com/metadata"}}},
+		{"reserved name", url.Values{"name": {"sp"}, "entity_id": {entityID}}},
+		{"name with a slash", url.Values{"name": {"a/b"}, "entity_id": {entityID}}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, store, mux := newShortcutTestHandler(t)
+			seedService(t, store, "testsp", entityID)
+
+			if w := postShortcut(t, mux, tc.form); w.Code != http.StatusBadRequest {
+				t.Fatalf("expected 400, got %d (%s)", w.Code, w.Body.String())
+			}
+			if names, err := store.List("/shortcuts/"); err == nil && len(names) != 0 {
+				t.Errorf("expected no shortcut to be stored, got %v", names)
+			}
+		})
+	}
+}
+
+// The page has to offer the registered SPs as options, and name the target of
+// every shortcut — including one whose SP is gone, which answers every login
+// with a bare 404.
+func TestShortcutsPageShowsServicesAndTargets(t *testing.T) {
+	const entityID = "https://sp.example.com/metadata"
+	_, store, mux := newShortcutTestHandler(t)
+	seedService(t, store, "testsp", entityID)
+
+	if err := store.Put("/shortcuts/live", &samlidp.Shortcut{Name: "live", ServiceProviderID: entityID}); err != nil {
+		t.Fatalf("Put shortcut: %v", err)
+	}
+	dangling := samlidp.Shortcut{Name: "dead", ServiceProviderID: "https://gone.example.com/metadata"}
+	if err := store.Put("/shortcuts/dead", &dangling); err != nil {
+		t.Fatalf("Put shortcut: %v", err)
+	}
+
+	req := httptest.NewRequest("GET", "/ui/shortcuts", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET /ui/shortcuts: expected 200, got %d", w.Code)
+	}
+	body := w.Body.String()
+
+	// renderPage streams, so a template error yields a truncated 200.
+	if !strings.Contains(body, "</html>") {
+		t.Fatal("response body was truncated, template probably failed mid-render")
+	}
+	if !strings.Contains(body, `<option value="`+entityID+`">testsp (`+entityID+`)</option>`) {
+		t.Error("expected the registered service to appear as a dropdown option")
+	}
+	if !strings.Contains(body, "unregistered") {
+		t.Error("expected the shortcut with no registered SP to be flagged")
+	}
+}
+
+// With nothing registered the form cannot produce a working shortcut, so it is
+// replaced by a pointer to the Services page.
+func TestShortcutsPageWithoutServices(t *testing.T) {
+	_, _, mux := newShortcutTestHandler(t)
+	req := httptest.NewRequest("GET", "/ui/shortcuts", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	body := w.Body.String()
+	if strings.Contains(body, `name="entity_id"`) {
+		t.Error("expected no shortcut form when no service is registered")
+	}
+	if !strings.Contains(body, "/ui/services") {
+		t.Error("expected a link to the Services page")
+	}
+}
+
+// Renaming must not quietly drop the RelayState the shortcut was created with.
+func TestShortcutRenameKeepsRelayState(t *testing.T) {
+	const entityID = "https://sp.example.com/metadata"
+	_, store, mux := newShortcutTestHandler(t)
+	seedService(t, store, "testsp", entityID)
+
+	relay := "/dashboard"
+	original := samlidp.Shortcut{Name: "before", ServiceProviderID: entityID, RelayState: &relay}
+	if err := store.Put("/shortcuts/before", &original); err != nil {
+		t.Fatalf("Put shortcut: %v", err)
+	}
+
+	req := httptest.NewRequest("POST", "/ui/shortcuts/before/rename", nil)
+	req.Header.Set("HX-Prompt", "after")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("rename: expected 200, got %d (%s)", w.Code, w.Body.String())
+	}
+
+	var got samlidp.Shortcut
+	if err := store.Get("/shortcuts/after", &got); err != nil {
+		t.Fatalf("Get renamed shortcut: %v", err)
+	}
+	if got.RelayState == nil || *got.RelayState != relay {
+		t.Errorf("RelayState = %v, want %q", got.RelayState, relay)
+	}
+	// The row that goes back to the browser has to name the new target too.
+	if !strings.Contains(w.Body.String(), "testsp") {
+		t.Error("expected the rendered row to name the target service")
+	}
+}

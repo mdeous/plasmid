@@ -2,21 +2,46 @@
 {{define "content"}}
 <h1>Login Shortcuts</h1>
 
+{{if .Services}}
 <details>
     <summary role="button" class="secondary">Add Shortcut</summary>
     <form hx-post="/ui/shortcuts" hx-target="#shortcut-table-body" hx-swap="beforeend" hx-on::after-request="if(event.detail.successful) { this.reset(); var es = document.querySelector('#shortcut-table-body .empty-state-row'); if (es) es.remove(); }">
         <div class="grid">
             <label>Name <input type="text" name="name" required></label>
-            <label>SP Entity ID <input type="text" name="entity_id" required></label>
+            <label>Service Provider
+                <select name="entity_id" required>
+                    {{range .Services}}
+                    <option value="{{.EntityID}}">{{.Name}} ({{.EntityID}})</option>
+                    {{end}}
+                </select>
+            </label>
         </div>
+        <div class="grid">
+            <label>RelayState
+                <select name="relay_state_mode" id="relay_state_mode">
+                    <option value="">— None —</option>
+                    <option value="fixed">Fixed value</option>
+                    <option value="suffix">From URL suffix</option>
+                </select>
+            </label>
+            <div id="relay_state_fixed_field" style="display:none;">
+                <label>Value <input type="text" name="relay_state" placeholder="/dashboard"></label>
+            </div>
+        </div>
+        <small>From URL suffix: <code>/login/&lt;name&gt;/foo</code> sends RelayState <code>/foo</code>.</small>
         <div><button type="submit" class="inline-submit">Create Shortcut</button></div>
     </form>
 </details>
+{{else}}
+<p>No service providers registered yet. A shortcut points at a registered SP, so <a href="/ui/services">register one first</a>.</p>
+{{end}}
 
 <table>
     <thead>
         <tr>
             <th>Name</th>
+            <th>Service Provider</th>
+            <th>RelayState</th>
             <th>Login URL</th>
             <th>Actions</th>
         </tr>
@@ -27,7 +52,7 @@
         {{template "shortcut_row" .}}
         {{end}}
         {{else}}
-        <tr class="empty-state-row"><td colspan="3">No shortcuts yet. Create one to bookmark an IdP-initiated login URL.</td></tr>
+        <tr class="empty-state-row"><td colspan="5">No shortcuts yet. Create one to bookmark an IdP-initiated login URL.</td></tr>
         {{end}}
     </tbody>
 </table>
