@@ -11,6 +11,10 @@ admin_port: 8001
 # metadata. The library's own default is transient, which most SPs cannot
 # resolve to a user. Leave this empty to get that default back.
 nameid_format: urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress
+# signature_method is the XML signature algorithm assertions and responses are
+# signed with. crewjam/saml falls back to rsa-sha1, which modern SPs reject;
+# select it on purpose to test whether an SP still accepts a downgrade.
+signature_method: http://www.w3.org/2001/04/xmldsig-more#rsa-sha256
 cert:
   ca_org: Example Org
   ca_country: FR

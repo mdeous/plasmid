@@ -44,6 +44,9 @@ type testEnv struct {
 // tests exercise the format a real run emits.
 const testNameIDFormat = "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
 
+// testSignatureMethod mirrors cmd/serve's default for config.SignatureMethod.
+const testSignatureMethod = dsig.RSASHA256SignatureMethod
+
 func newTestEnv(t *testing.T) *testEnv {
 	t.Helper()
 
@@ -132,16 +135,17 @@ func newTestEnv(t *testing.T) *testEnv {
 	log := slog.Default()
 
 	p, err := New(Options{
-		Host:         "localhost",
-		Port:         0,
-		AdminHost:    "127.0.0.1",
-		AdminPort:    8001,
-		BaseUrl:      idpURL,
-		Key:          idpKey,
-		Certificate:  idpCert,
-		Store:        store,
-		Logger:       log,
-		NameIDFormat: testNameIDFormat,
+		Host:            "localhost",
+		Port:            0,
+		AdminHost:       "127.0.0.1",
+		AdminPort:       8001,
+		BaseUrl:         idpURL,
+		Key:             idpKey,
+		Certificate:     idpCert,
+		Store:           store,
+		Logger:          log,
+		NameIDFormat:    testNameIDFormat,
+		SignatureMethod: testSignatureMethod,
 	})
 	if err != nil {
 		t.Fatalf("create plasmid: %v", err)
@@ -1247,4 +1251,52 @@ func assertionAttribute(assertion *saml.Assertion, name string) string {
 		}
 	}
 	return ""
+}
+
+// crewjam/saml signs with RSA-SHA1 when no method is set, and most SPs now
+// reject that. The attack paths in internal/saml already re-sign with SHA-256,
+// so a SHA-1 baseline would have a clean login rejected while a tampered one
+// was accepted.
+func TestSignaturesUseConfiguredAlgorithm(t *testing.T) {
+	env := newTestEnv(t)
+
+	form := url.Values{"user": {"testuser"}, "password": {"testpass"}}
+	req := httptest.NewRequest("POST", "https://idp.example.com/login", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Referer", "https://idp.example.com/login/sp/plainsp")
+	w := httptest.NewRecorder()
+	env.handler.ServeHTTP(w, req)
+	sessionCookie := cookiesForURL(w.Result().Cookies(), "session")
+	if sessionCookie == nil {
+		t.Fatal("POST /login: no session cookie set")
+	}
+
+	req = httptest.NewRequest("GET", "https://idp.example.com/login/sp/plainsp", nil)
+	req.AddCookie(sessionCookie)
+	w = httptest.NewRecorder()
+	env.handler.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET /login/sp/plainsp: expected 200, got %d; body: %s", w.Code, w.Body.String())
+	}
+
+	decoded, err := base64.StdEncoding.DecodeString(extractFormValue(w.Body.String(), "SAMLResponse"))
+	if err != nil {
+		t.Fatalf("decode SAMLResponse: %v", err)
+	}
+	raw := string(decoded)
+
+	if strings.Contains(raw, dsig.RSASHA1SignatureMethod) {
+		t.Error("response still carries an RSA-SHA1 signature")
+	}
+	if n := strings.Count(raw, testSignatureMethod); n < 1 {
+		t.Errorf("expected at least one %s signature, found %d", testSignatureMethod, n)
+	}
+	// goxmldsig derives the digest from the signature method's hash, so this
+	// moves with it rather than being configured separately.
+	if strings.Contains(raw, "http://www.w3.org/2000/09/xmldsig#sha1") {
+		t.Error("response still carries a SHA-1 digest")
+	}
+	if !strings.Contains(raw, "http://www.w3.org/2001/04/xmlenc#sha256") {
+		t.Error("expected a SHA-256 digest method")
+	}
 }

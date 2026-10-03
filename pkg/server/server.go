@@ -435,9 +435,17 @@ type Options struct {
 	// in the IdP metadata. Empty leaves crewjam/saml's transient default in
 	// place.
 	NameIDFormat string
+	// SignatureMethod is the XML signature algorithm assertions and responses
+	// are signed with, from SignatureMethods. Empty leaves crewjam/saml's
+	// RSA-SHA1 fallback in place, which most SPs reject.
+	SignatureMethod string
 }
 
 func New(opts Options) (*Plasmid, error) {
+	if err := validateSignatureMethod(opts.SignatureMethod); err != nil {
+		return nil, err
+	}
+
 	loginTmpl, err := web.LoginFormTemplate()
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse login template: %v", err)
@@ -453,6 +461,13 @@ func New(opts Options) (*Plasmid, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// Left unset, crewjam/saml signs with RSA-SHA1. The attack paths in
+	// internal/saml already re-sign with SHA-256, so leaving the baseline on
+	// SHA-1 would have a clean login rejected by an SP that has dropped SHA-1
+	// while a tampered one sailed through — the failure reason and the thing
+	// under test swapped round.
+	idpServer.IDP.SignatureMethod = opts.SignatureMethod
 
 	idpServer.IDP.SessionProvider = sessionStamper{
 		inner:        idpServer.IDP.SessionProvider,

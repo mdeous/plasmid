@@ -34,6 +34,7 @@ const (
 	SPName              = "sp.name"
 	SPMetadata          = "sp.metadata"
 	NameIDFormat        = "nameid_format"
+	SignatureMethod     = "signature_method"
 )
 
 var DefaultValues = map[string]any{
@@ -62,6 +63,10 @@ var DefaultValues = map[string]any{
 	// so transient makes a first login attempt against a new SP fail for a
 	// reason unrelated to whatever is being tested.
 	NameIDFormat: "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
+	// crewjam/saml falls back to RSA-SHA1, which modern SPs reject. This is
+	// dsig.RSASHA256SignatureMethod, spelled out so this package stays free of
+	// the signing library.
+	SignatureMethod: "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256",
 }
 
 func LoadFile(filePath string) error {

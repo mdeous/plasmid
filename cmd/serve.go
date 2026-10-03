@@ -133,16 +133,17 @@ var serveCmd = &cobra.Command{
 			return err
 		}
 		idp, err := server.New(server.Options{
-			Host:         viper.GetString(config.Host),
-			Port:         viper.GetInt(config.Port),
-			AdminHost:    viper.GetString(config.AdminHost),
-			AdminPort:    viper.GetInt(config.AdminPort),
-			BaseUrl:      baseUrl,
-			Key:          privKey,
-			Certificate:  cert,
-			Store:        idpStore,
-			Logger:       logr,
-			NameIDFormat: viper.GetString(config.NameIDFormat),
+			Host:            viper.GetString(config.Host),
+			Port:            viper.GetInt(config.Port),
+			AdminHost:       viper.GetString(config.AdminHost),
+			AdminPort:       viper.GetInt(config.AdminPort),
+			BaseUrl:         baseUrl,
+			Key:             privKey,
+			Certificate:     cert,
+			Store:           idpStore,
+			Logger:          logr,
+			NameIDFormat:    viper.GetString(config.NameIDFormat),
+			SignatureMethod: viper.GetString(config.SignatureMethod),
 		})
 		if err != nil {
 			return err
@@ -198,6 +199,13 @@ func init() {
 		Name:        "nameid-format",
 		Usage:       "NameID format to put in assertions",
 		ConfigField: config.NameIDFormat,
+	}
+	f.BindString()
+	f = &Flag{
+		Command:     serveCmd,
+		Name:        "signature-method",
+		Usage:       "XML signature algorithm to sign assertions and responses with",
+		ConfigField: config.SignatureMethod,
 	}
 	f.BindString()
 	f = &Flag{
