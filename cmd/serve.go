@@ -133,15 +133,16 @@ var serveCmd = &cobra.Command{
 			return err
 		}
 		idp, err := server.New(server.Options{
-			Host:        viper.GetString(config.Host),
-			Port:        viper.GetInt(config.Port),
-			AdminHost:   viper.GetString(config.AdminHost),
-			AdminPort:   viper.GetInt(config.AdminPort),
-			BaseUrl:     baseUrl,
-			Key:         privKey,
-			Certificate: cert,
-			Store:       idpStore,
-			Logger:      logr,
+			Host:         viper.GetString(config.Host),
+			Port:         viper.GetInt(config.Port),
+			AdminHost:    viper.GetString(config.AdminHost),
+			AdminPort:    viper.GetInt(config.AdminPort),
+			BaseUrl:      baseUrl,
+			Key:          privKey,
+			Certificate:  cert,
+			Store:        idpStore,
+			Logger:       logr,
+			NameIDFormat: viper.GetString(config.NameIDFormat),
 		})
 		if err != nil {
 			return err
@@ -190,6 +191,13 @@ func init() {
 		ShortHand:   "u",
 		Usage:       "base url exposing idp",
 		ConfigField: config.BaseUrl,
+	}
+	f.BindString()
+	f = &Flag{
+		Command:     serveCmd,
+		Name:        "nameid-format",
+		Usage:       "NameID format to put in assertions",
+		ConfigField: config.NameIDFormat,
 	}
 	f.BindString()
 	f = &Flag{

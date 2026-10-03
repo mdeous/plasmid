@@ -27,17 +27,18 @@ import (
 )
 
 type Plasmid struct {
-	Host        string
-	Port        int
-	AdminHost   string
-	AdminPort   int
-	IDP         *samlidp.Server
-	PublicMux   *http.ServeMux
-	AdminMux    *http.ServeMux
-	logger      *slog.Logger
-	externalUrl string
-	key         *rsa.PrivateKey
-	cert        *x509.Certificate
+	Host         string
+	Port         int
+	AdminHost    string
+	AdminPort    int
+	IDP          *samlidp.Server
+	PublicMux    *http.ServeMux
+	AdminMux     *http.ServeMux
+	logger       *slog.Logger
+	externalUrl  string
+	key          *rsa.PrivateKey
+	cert         *x509.Certificate
+	nameIDFormat string
 }
 
 // adminUrl is the address an operator reaches the dashboard on. A wildcard
@@ -53,6 +54,16 @@ func (p *Plasmid) adminUrl() string {
 
 func (p *Plasmid) Metadata() ([]byte, error) {
 	metaDescriptor := p.IDP.IDP.Metadata()
+	// crewjam/saml hardcodes a transient NameIDFormat in the descriptor it
+	// builds. Advertise the format the assertions actually carry instead, so an
+	// SP reading the metadata is not told one thing and then sent another.
+	if p.nameIDFormat != "" {
+		for i := range metaDescriptor.IDPSSODescriptors {
+			metaDescriptor.IDPSSODescriptors[i].NameIDFormats = []saml.NameIDFormat{
+				saml.NameIDFormat(p.nameIDFormat),
+			}
+		}
+	}
 	meta, err := xml.MarshalIndent(metaDescriptor, "", " ")
 	if err != nil {
 		return []byte{}, fmt.Errorf("failed to serialize idp metadata: %v", err)
@@ -103,7 +114,11 @@ func (p *Plasmid) BuildRoutes() (*internalsml.Inspector, *internalsml.TamperConf
 	p.PublicMux.Handle("GET /login/sp/{name}", internalsml.InterceptMiddleware(
 		inspector, tamperConfig, p.logger, http.HandlerFunc(p.handleServiceLogin),
 	))
-	p.PublicMux.Handle("GET /metadata", idpHandler)
+	// Served by plasmid rather than the library so the advertised NameIDFormat
+	// matches the assertions and the exported idp-metadata.xml file.
+	p.PublicMux.Handle("GET /metadata", internalsml.InterceptMiddleware(
+		inspector, tamperConfig, p.logger, http.HandlerFunc(p.handleMetadata),
+	))
 	p.PublicMux.Handle("/sso", ssoHandler)
 	p.PublicMux.Handle("/sso/", ssoHandler)
 
@@ -228,6 +243,7 @@ func (p *Plasmid) handleLogin(w http.ResponseWriter, r *http.Request) {
 		UserGivenName:         user.GivenName,
 		UserScopedAffiliation: user.ScopedAffiliation,
 	}
+	stampSession(session, p.nameIDFormat)
 	if err := p.IDP.Store.Put("/sessions/"+session.ID, session); err != nil {
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
@@ -269,6 +285,22 @@ func (p *Plasmid) handleLogin(w http.ResponseWriter, r *http.Request) {
 	// A bare login with no SAML context has nowhere to go on this listener:
 	// the dashboard lives on the admin one, so send the operator there.
 	http.Redirect(w, r, p.adminUrl()+"/ui/", http.StatusSeeOther)
+}
+
+// handleMetadata serves the IdP descriptor from Plasmid.Metadata instead of
+// letting the library serve its own, which would advertise a NameIDFormat the
+// assertions do not use.
+func (p *Plasmid) handleMetadata(w http.ResponseWriter, _ *http.Request) {
+	meta, err := p.Metadata()
+	if err != nil {
+		p.logger.Error("failed to serialize idp metadata", "error", err)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/samlmetadata+xml")
+	if _, err := w.Write(meta); err != nil {
+		p.logger.Error("failed to write idp metadata", "error", err)
+	}
 }
 
 // handleServiceLogin starts an IdP-initiated flow for a registered service by
@@ -399,6 +431,10 @@ type Options struct {
 	Certificate *x509.Certificate
 	Store       samlidp.Store
 	Logger      *slog.Logger
+	// NameIDFormat is stamped onto every session that has none, and advertised
+	// in the IdP metadata. Empty leaves crewjam/saml's transient default in
+	// place.
+	NameIDFormat string
 }
 
 func New(opts Options) (*Plasmid, error) {
@@ -418,17 +454,23 @@ func New(opts Options) (*Plasmid, error) {
 		return nil, err
 	}
 
+	idpServer.IDP.SessionProvider = sessionStamper{
+		inner:        idpServer.IDP.SessionProvider,
+		nameIDFormat: opts.NameIDFormat,
+	}
+
 	return &Plasmid{
-		Host:        opts.Host,
-		Port:        opts.Port,
-		AdminHost:   opts.AdminHost,
-		AdminPort:   opts.AdminPort,
-		IDP:         idpServer,
-		PublicMux:   http.NewServeMux(),
-		AdminMux:    http.NewServeMux(),
-		logger:      opts.Logger,
-		externalUrl: opts.BaseUrl.String(),
-		key:         opts.Key,
-		cert:        opts.Certificate,
+		Host:         opts.Host,
+		Port:         opts.Port,
+		AdminHost:    opts.AdminHost,
+		AdminPort:    opts.AdminPort,
+		IDP:          idpServer,
+		PublicMux:    http.NewServeMux(),
+		AdminMux:     http.NewServeMux(),
+		logger:       opts.Logger,
+		externalUrl:  opts.BaseUrl.String(),
+		key:          opts.Key,
+		cert:         opts.Certificate,
+		nameIDFormat: opts.NameIDFormat,
 	}, nil
 }

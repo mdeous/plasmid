@@ -40,6 +40,10 @@ type testEnv struct {
 	inspector *internalsml.Inspector
 }
 
+// testNameIDFormat is what cmd/serve defaults config.NameIDFormat to, so the
+// tests exercise the format a real run emits.
+const testNameIDFormat = "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
+
 func newTestEnv(t *testing.T) *testEnv {
 	t.Helper()
 
@@ -99,19 +103,45 @@ func newTestEnv(t *testing.T) *testEnv {
 		t.Fatalf("store service: %v", err)
 	}
 
+	// A second SP with no encryption certificate, so its assertions stay in
+	// the clear and a test can read the subject straight off the wire.
+	plainMetadataURL, _ := url.Parse("https://plain.example.com/saml2/metadata")
+	plainAcsURL, _ := url.Parse("https://plain.example.com/saml2/acs")
+	plainSP := saml.ServiceProvider{
+		Key:         spKey,
+		Certificate: spCert,
+		MetadataURL: *plainMetadataURL,
+		AcsURL:      *plainAcsURL,
+		IDPMetadata: &saml.EntityDescriptor{},
+	}
+	plainMeta := plainSP.Metadata()
+	for i := range plainMeta.SPSSODescriptors {
+		kept := plainMeta.SPSSODescriptors[i].KeyDescriptors[:0]
+		for _, kd := range plainMeta.SPSSODescriptors[i].KeyDescriptors {
+			if kd.Use != "encryption" {
+				kept = append(kept, kd)
+			}
+		}
+		plainMeta.SPSSODescriptors[i].KeyDescriptors = kept
+	}
+	if err := store.Put("/services/plainsp", &samlidp.Service{Name: "plainsp", Metadata: *plainMeta}); err != nil {
+		t.Fatalf("store plaintext service: %v", err)
+	}
+
 	idpURL, _ := url.Parse("https://idp.example.com")
 	log := slog.Default()
 
 	p, err := New(Options{
-		Host:        "localhost",
-		Port:        0,
-		AdminHost:   "127.0.0.1",
-		AdminPort:   8001,
-		BaseUrl:     idpURL,
-		Key:         idpKey,
-		Certificate: idpCert,
-		Store:       store,
-		Logger:      log,
+		Host:         "localhost",
+		Port:         0,
+		AdminHost:    "127.0.0.1",
+		AdminPort:    8001,
+		BaseUrl:      idpURL,
+		Key:          idpKey,
+		Certificate:  idpCert,
+		Store:        store,
+		Logger:       log,
+		NameIDFormat: testNameIDFormat,
 	})
 	if err != nil {
 		t.Fatalf("create plasmid: %v", err)
@@ -1125,4 +1155,96 @@ func TestServiceLoginGoesThroughTamperMiddleware(t *testing.T) {
 	if len(env.inspector.List()) == 0 {
 		t.Error("expected the exchange to be recorded by the inspector")
 	}
+}
+
+// crewjam/saml reads the NameID format off the session and samlidp never sets
+// one, so plasmid stamps it. Without the stamp the subject goes out as
+// transient and an SP that identifies users by email address rejects the
+// assertion for a reason unrelated to whatever is being tested.
+func TestIdPInitiatedAssertionCarriesConfiguredNameIDFormat(t *testing.T) {
+	env := newTestEnv(t)
+
+	form := url.Values{"user": {"testuser"}, "password": {"testpass"}}
+	req := httptest.NewRequest("POST", "https://idp.example.com/login", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Referer", "https://idp.example.com/login/sp/plainsp")
+	w := httptest.NewRecorder()
+	env.handler.ServeHTTP(w, req)
+	sessionCookie := cookiesForURL(w.Result().Cookies(), "session")
+	if sessionCookie == nil {
+		t.Fatal("POST /login: no session cookie set")
+	}
+
+	req = httptest.NewRequest("GET", "https://idp.example.com/login/sp/plainsp", nil)
+	req.AddCookie(sessionCookie)
+	w = httptest.NewRecorder()
+	env.handler.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET /login/sp/plainsp: expected 200, got %d; body: %s", w.Code, w.Body.String())
+	}
+
+	decoded, err := base64.StdEncoding.DecodeString(extractFormValue(w.Body.String(), "SAMLResponse"))
+	if err != nil {
+		t.Fatalf("decode SAMLResponse: %v", err)
+	}
+	var response saml.Response
+	if err := xml.Unmarshal(decoded, &response); err != nil {
+		t.Fatalf("parse SAMLResponse XML: %v", err)
+	}
+	if response.Assertion == nil || response.Assertion.Subject == nil || response.Assertion.Subject.NameID == nil {
+		t.Fatalf("expected a plaintext assertion with a subject, got %+v", response)
+	}
+
+	nameID := response.Assertion.Subject.NameID
+	if nameID.Format != testNameIDFormat {
+		t.Errorf("NameID Format = %q, want %q", nameID.Format, testNameIDFormat)
+	}
+	if nameID.Value != "testuser@example.com" {
+		t.Errorf("NameID = %q, want the user's email", nameID.Value)
+	}
+	if got := assertionAttribute(response.Assertion, "urn:oid:1.3.6.1.4.1.5923.1.1.1.6"); got != "testuser@example.com" {
+		t.Errorf("eduPersonPrincipalName = %q, want the user's email", got)
+	}
+	// No InResponseTo is what makes the response unsolicited, and is correct
+	// here: there was no AuthnRequest to respond to.
+	if response.InResponseTo != "" {
+		t.Errorf("InResponseTo = %q, want empty for an IdP-initiated response", response.InResponseTo)
+	}
+}
+
+// The served descriptor has to agree with the assertions. crewjam/saml
+// hardcodes transient in the metadata it builds, which would otherwise tell an
+// SP one thing and then send it another.
+func TestMetadataAdvertisesConfiguredNameIDFormat(t *testing.T) {
+	env := newTestEnv(t)
+
+	req := httptest.NewRequest("GET", "https://idp.example.com/metadata", nil)
+	w := httptest.NewRecorder()
+	env.handler.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET /metadata: expected 200, got %d", w.Code)
+	}
+
+	var descriptor saml.EntityDescriptor
+	if err := xml.Unmarshal(w.Body.Bytes(), &descriptor); err != nil {
+		t.Fatalf("parse metadata XML: %v", err)
+	}
+	if len(descriptor.IDPSSODescriptors) == 0 {
+		t.Fatal("metadata has no IDPSSODescriptor")
+	}
+	formats := descriptor.IDPSSODescriptors[0].NameIDFormats
+	if len(formats) != 1 || string(formats[0]) != testNameIDFormat {
+		t.Errorf("metadata NameIDFormats = %v, want [%s]", formats, testNameIDFormat)
+	}
+}
+
+func assertionAttribute(assertion *saml.Assertion, name string) string {
+	for _, stmt := range assertion.AttributeStatements {
+		for _, attr := range stmt.Attributes {
+			if attr.Name == name && len(attr.Values) > 0 {
+				return attr.Values[0].Value
+			}
+		}
+	}
+	return ""
 }

@@ -33,6 +33,7 @@ const (
 	UserGroups          = "user.groups"
 	SPName              = "sp.name"
 	SPMetadata          = "sp.metadata"
+	NameIDFormat        = "nameid_format"
 )
 
 var DefaultValues = map[string]any{
@@ -56,6 +57,11 @@ var DefaultValues = map[string]any{
 	UserLastName:        "User",
 	UserEmail:           "admin@example.com",
 	UserGroups:          []string{"Administrators", "Users"},
+	// samlidp never sets a NameID format, which leaves crewjam/saml emitting
+	// transient. Practically every real SP identifies users by email address,
+	// so transient makes a first login attempt against a new SP fail for a
+	// reason unrelated to whatever is being tested.
+	NameIDFormat: "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
 }
 
 func LoadFile(filePath string) error {
