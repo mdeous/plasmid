@@ -1449,3 +1449,73 @@ func TestSendUnencryptedFromStartupSeedsTamperConfig(t *testing.T) {
 		t.Error("dropping encryption deviates from the SP's metadata and must be reported")
 	}
 }
+
+// InResponseTo is applied before the library builds anything, so it lands in
+// both the Response and the assertion's SubjectConfirmationData and both stay
+// correctly signed. An SP that rejects it must be rejecting the value, not a
+// stale digest.
+func TestInResponseToOverrideIsSignedIntoBothPlaces(t *testing.T) {
+	env := newTestEnv(t)
+	env.tamper.Update(internalsml.TamperUpdateInput{Enabled: true, InResponseTo: "id-never-issued"})
+
+	raw := loginToSP(t, env, "plainsp")
+
+	var response saml.Response
+	if err := xml.Unmarshal([]byte(raw), &response); err != nil {
+		t.Fatalf("parse response: %v", err)
+	}
+	if response.InResponseTo != "id-never-issued" {
+		t.Errorf("Response InResponseTo = %q, want the injected value", response.InResponseTo)
+	}
+	if response.Assertion == nil || response.Assertion.Subject == nil {
+		t.Fatal("expected a plaintext assertion with a subject")
+	}
+	confirmations := response.Assertion.Subject.SubjectConfirmations
+	if len(confirmations) == 0 || confirmations[0].SubjectConfirmationData == nil {
+		t.Fatal("expected a SubjectConfirmationData")
+	}
+	if got := confirmations[0].SubjectConfirmationData.InResponseTo; got != "id-never-issued" {
+		t.Errorf("SubjectConfirmationData InResponseTo = %q, want the injected value", got)
+	}
+
+	assertSignaturesValid(t, env, raw)
+}
+
+// On an IdP-initiated login there was no request, so the recorded original is
+// spelled out rather than left blank.
+func TestInResponseToOverrideRecordedAsModification(t *testing.T) {
+	env := newTestEnv(t)
+	env.tamper.Update(internalsml.TamperUpdateInput{Enabled: true, InResponseTo: "id-never-issued"})
+
+	loginToSP(t, env, "plainsp")
+
+	exchanges := env.inspector.List()
+	if len(exchanges) == 0 {
+		t.Fatal("no exchange recorded")
+	}
+	var found *internalsml.TamperModification
+	for i := range exchanges[0].Modifications {
+		if exchanges[0].Modifications[i].Field == "InResponseTo" {
+			found = &exchanges[0].Modifications[i]
+		}
+	}
+	if found == nil {
+		t.Fatalf("no InResponseTo modification recorded, got %+v", exchanges[0].Modifications)
+	}
+	if found.OldValue != "(none)" {
+		t.Errorf("OldValue = %q, want %q for an unsolicited response", found.OldValue, "(none)")
+	}
+	if found.NewValue != "id-never-issued" {
+		t.Errorf("NewValue = %q, want the injected value", found.NewValue)
+	}
+}
+
+// Without the override an IdP-initiated response carries no InResponseTo, which
+// is what makes it unsolicited.
+func TestIdPInitiatedHasNoInResponseToByDefault(t *testing.T) {
+	raw := loginToSP(t, newTestEnv(t), "plainsp")
+
+	if strings.Contains(raw, "InResponseTo") {
+		t.Errorf("expected no InResponseTo in an unsolicited response:\n%s", raw)
+	}
+}

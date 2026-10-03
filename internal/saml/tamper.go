@@ -52,6 +52,7 @@ type TamperConfig struct {
 	NameIDFormat     string
 	Issuer           string
 	Audience         string
+	InResponseTo     string
 	RelayState       string
 	InjectAttributes []TamperAttribute
 	XSWVariant       string
@@ -164,6 +165,7 @@ type TamperConfigSnapshot struct {
 	NameIDFormat     string
 	Issuer           string
 	Audience         string
+	InResponseTo     string
 	RelayState       string
 	InjectAttributes []TamperAttribute
 	XSWVariant       string
@@ -198,6 +200,7 @@ func (tc *TamperConfig) GetConfig() TamperConfigSnapshot {
 		NameIDFormat:     tc.NameIDFormat,
 		Issuer:           tc.Issuer,
 		Audience:         tc.Audience,
+		InResponseTo:     tc.InResponseTo,
 		RelayState:       tc.RelayState,
 		InjectAttributes: make([]TamperAttribute, len(tc.InjectAttributes)),
 		XSWVariant:       tc.XSWVariant,
@@ -225,6 +228,7 @@ type TamperUpdateInput struct {
 	NameIDFormat     string
 	Issuer           string
 	Audience         string
+	InResponseTo     string
 	RelayState       string
 	InjectAttributes []TamperAttribute
 	XSWVariant       string
@@ -251,6 +255,7 @@ func (tc *TamperConfig) Update(input TamperUpdateInput) {
 	tc.NameIDFormat = input.NameIDFormat
 	tc.Issuer = input.Issuer
 	tc.Audience = input.Audience
+	tc.InResponseTo = input.InResponseTo
 	tc.RelayState = input.RelayState
 	tc.InjectAttributes = input.InjectAttributes
 	tc.XSWVariant = input.XSWVariant
@@ -290,7 +295,36 @@ type TamperableAssertionMaker struct {
 	IncludeSubjectAddress bool
 }
 
+// inResponseToOverride reads the configured InResponseTo without holding the
+// lock the rest of MakeAssertion takes later.
+func (t TamperableAssertionMaker) inResponseToOverride() string {
+	if t.Config == nil || !t.Config.IsEnabled() {
+		return ""
+	}
+	t.Config.mu.RLock()
+	defer t.Config.mu.RUnlock()
+	return t.Config.InResponseTo
+}
+
 func (t TamperableAssertionMaker) MakeAssertion(req *crewsaml.IdpAuthnRequest, session *crewsaml.Session) error {
+	// The InResponseTo override is applied before the library builds anything.
+	// crewjam/saml copies req.Request.ID into the assertion's
+	// SubjectConfirmationData and, later, into the Response element, so
+	// setting it here leaves both covered by their own signatures and the SP
+	// evaluates the value instead of rejecting a stale digest. Rewriting
+	// either attribute after signing would only ever test the digest.
+	//
+	// For an IdP-initiated login req.Request is the zero AuthnRequest, so this
+	// is how an unsolicited response comes to carry an InResponseTo at all —
+	// the point being to find out whether the SP matches it against a request
+	// it actually issued. crewjam/saml's own SP skips that check entirely once
+	// AllowIDPInitiated is set (service_provider.go:1191).
+	originalRequestID := req.Request.ID
+	inResponseTo := t.inResponseToOverride()
+	if inResponseTo != "" {
+		req.Request.ID = inResponseTo
+	}
+
 	if err := (crewsaml.DefaultAssertionMaker{}).MakeAssertion(req, session); err != nil {
 		return err
 	}
@@ -311,6 +345,14 @@ func (t TamperableAssertionMaker) MakeAssertion(req *crewsaml.IdpAuthnRequest, s
 
 	assertion := req.Assertion
 	var mods []TamperModification
+
+	if inResponseTo != "" {
+		old := originalRequestID
+		if old == "" {
+			old = "(none)"
+		}
+		mods = append(mods, TamperModification{"InResponseTo", old, inResponseTo})
+	}
 
 	if t.Config.NameID != "" && assertion.Subject != nil && assertion.Subject.NameID != nil {
 		mods = append(mods, TamperModification{"NameID", assertion.Subject.NameID.Value, t.Config.NameID})

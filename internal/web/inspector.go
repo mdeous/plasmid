@@ -65,6 +65,9 @@ func (h *WebHandler) tamperBannerSummary() string {
 	if cfg.Audience != "" {
 		parts = append(parts, "Audience override")
 	}
+	if cfg.InResponseTo != "" {
+		parts = append(parts, "InResponseTo override")
+	}
 	if cfg.RelayState != "" {
 		parts = append(parts, "RelayState override")
 	}
@@ -226,6 +229,7 @@ func parseTamperForm(r *http.Request) internalsml.TamperUpdateInput {
 		NameIDFormat:     r.FormValue("name_id_format"),
 		Issuer:           strings.TrimSpace(r.FormValue("issuer")),
 		Audience:         strings.TrimSpace(r.FormValue("audience")),
+		InResponseTo:     strings.TrimSpace(r.FormValue("in_response_to")),
 		RelayState:       strings.TrimSpace(r.FormValue("relay_state")),
 		InjectAttributes: attrs,
 		XSWVariant:       r.FormValue("xsw_variant"),
@@ -315,7 +319,8 @@ func (h *WebHandler) handleTamperPreview(w http.ResponseWriter, r *http.Request)
 	if proposed.Enabled && !proposed.RemoveSignature && proposed.SignatureMode == "" &&
 		proposed.SignKeyMode == "" && proposed.ParserDiffMode == "" &&
 		proposed.NameID == "" && proposed.NameIDFormat == "" && proposed.Issuer == "" &&
-		proposed.Audience == "" && proposed.RelayState == "" && proposed.XSWVariant == "" &&
+		proposed.Audience == "" && proposed.InResponseTo == "" &&
+		proposed.RelayState == "" && proposed.XSWVariant == "" &&
 		!proposed.XXEEnabled && !proposed.CommentInjection && !proposed.SendUnencrypted &&
 		len(proposed.InjectAttributes) == 0 {
 		warnings = append(warnings, "Tampering is enabled but no transforms are configured — the assertion will pass through unchanged.")

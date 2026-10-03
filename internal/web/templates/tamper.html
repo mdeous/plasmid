@@ -67,6 +67,10 @@
         <label>Audience Override
             <input type="text" name="audience" value="{{.Config.Audience}}" placeholder="Leave empty to keep original">
         </label>
+        <label>InResponseTo Override
+            <input type="text" name="in_response_to" value="{{.Config.InResponseTo}}" placeholder="Leave empty to keep original">
+            <small>Applied before signing, so both the Response and the assertion's SubjectConfirmationData carry it and stay signed. On an IdP-initiated login this makes an unsolicited response claim a request ID the SP never issued.</small>
+        </label>
         <label>RelayState Override
             <input type="text" name="relay_state" value="{{.Config.RelayState}}" placeholder="Leave empty to keep original">
         </label>

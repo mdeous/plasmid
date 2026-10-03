@@ -111,6 +111,7 @@ func TestTamperSaveRoundTrip(t *testing.T) {
 		"xsw_variant":      {"xsw3"},
 		"xsw_nameid":       {"evil@example.com"},
 		"relay_state":      {"tampered-relay"},
+		"in_response_to":   {"id-never-issued"},
 		"sign_key_mode":    {"clone_dn"},
 		"parser_diff_mode": {"void_c14n"},
 	}
@@ -132,6 +133,9 @@ func TestTamperSaveRoundTrip(t *testing.T) {
 	}
 	if got.RelayState != "tampered-relay" {
 		t.Errorf("RelayState not saved: %q", got.RelayState)
+	}
+	if got.InResponseTo != "id-never-issued" {
+		t.Errorf("InResponseTo not saved: %q", got.InResponseTo)
 	}
 	if got.SignKeyMode != "clone_dn" {
 		t.Errorf("SignKeyMode not saved: %q", got.SignKeyMode)
