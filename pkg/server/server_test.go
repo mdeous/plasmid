@@ -47,7 +47,10 @@ const testNameIDFormat = "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress
 // testSignatureMethod mirrors cmd/serve's default for config.SignatureMethod.
 const testSignatureMethod = dsig.RSASHA256SignatureMethod
 
-func newTestEnv(t *testing.T) *testEnv {
+// newTestEnv builds a wired-up Plasmid. Option tweaks are applied before New,
+// so a test can exercise a startup setting rather than poking at the live
+// config afterwards.
+func newTestEnv(t *testing.T, tweaks ...func(*Options)) *testEnv {
 	t.Helper()
 
 	idpKey, err := utils.GeneratePrivateKey(2048)
@@ -134,7 +137,7 @@ func newTestEnv(t *testing.T) *testEnv {
 	idpURL, _ := url.Parse("https://idp.example.com")
 	log := slog.Default()
 
-	p, err := New(Options{
+	opts := Options{
 		Host:            "localhost",
 		Port:            0,
 		AdminHost:       "127.0.0.1",
@@ -146,7 +149,12 @@ func newTestEnv(t *testing.T) *testEnv {
 		Logger:          log,
 		NameIDFormat:    testNameIDFormat,
 		SignatureMethod: testSignatureMethod,
-	})
+	}
+	for _, tweak := range tweaks {
+		tweak(&opts)
+	}
+
+	p, err := New(opts)
 	if err != nil {
 		t.Fatalf("create plasmid: %v", err)
 	}
@@ -1301,15 +1309,15 @@ func TestSignaturesUseConfiguredAlgorithm(t *testing.T) {
 	}
 }
 
-// loginToPlainSP runs an IdP-initiated login against the SP with no encryption
-// certificate and returns the raw response XML.
-func loginToPlainSP(t *testing.T, env *testEnv) string {
+// loginToSP runs an IdP-initiated login against a registered service and
+// returns the raw response XML.
+func loginToSP(t *testing.T, env *testEnv, name string) string {
 	t.Helper()
 
 	form := url.Values{"user": {"testuser"}, "password": {"testpass"}}
 	req := httptest.NewRequest("POST", "https://idp.example.com/login", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.Header.Set("Referer", "https://idp.example.com/login/sp/plainsp")
+	req.Header.Set("Referer", "https://idp.example.com/login/sp/"+name)
 	w := httptest.NewRecorder()
 	env.handler.ServeHTTP(w, req)
 	cookie := cookiesForURL(w.Result().Cookies(), "session")
@@ -1317,13 +1325,13 @@ func loginToPlainSP(t *testing.T, env *testEnv) string {
 		t.Fatal("POST /login: no session cookie set")
 	}
 
-	req = httptest.NewRequest("GET", "https://idp.example.com/login/sp/plainsp", nil)
+	req = httptest.NewRequest("GET", "https://idp.example.com/login/sp/"+name, nil)
 	req.RemoteAddr = "127.0.0.1:53384"
 	req.AddCookie(cookie)
 	w = httptest.NewRecorder()
 	env.handler.ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
-		t.Fatalf("GET /login/sp/plainsp: expected 200, got %d; body: %s", w.Code, w.Body.String())
+		t.Fatalf("GET /login/sp/%s: expected 200, got %d; body: %s", name, w.Code, w.Body.String())
 	}
 
 	decoded, err := base64.StdEncoding.DecodeString(extractFormValue(w.Body.String(), "SAMLResponse"))
@@ -1338,7 +1346,7 @@ func loginToPlainSP(t *testing.T, env *testEnv) string {
 // rejects such an assertion before it reads any username, so a clean login
 // fails for a reason unrelated to what is being tested.
 func TestAssertionOmitsSubjectAddressByDefault(t *testing.T) {
-	raw := loginToPlainSP(t, newTestEnv(t))
+	raw := loginToSP(t, newTestEnv(t), "plainsp")
 
 	if strings.Contains(raw, "127.0.0.1") {
 		t.Errorf("assertion still carries the client address:\n%s", raw)
@@ -1369,12 +1377,75 @@ func TestAssertionKeepsSubjectAddressWhenRequested(t *testing.T) {
 		IncludeSubjectAddress: true,
 	}
 
-	raw := loginToPlainSP(t, env)
+	raw := loginToSP(t, env, "plainsp")
 
 	if !strings.Contains(raw, `Address="127.0.0.1:53384"`) {
 		t.Errorf("expected the client address to be kept:\n%s", raw)
 	}
 	if !strings.Contains(raw, "SubjectLocality") {
 		t.Error("expected SubjectLocality to be kept")
+	}
+}
+
+// assertSignaturesValid checks the response signature and the assertion
+// signature against the IdP certificate. The assertion is validated from a
+// literal substring rather than in place, which is how an SP that pulls the
+// assertion out of the response sees it.
+func assertSignaturesValid(t *testing.T, env *testEnv, raw string) {
+	t.Helper()
+
+	store := dsig.MemoryX509CertificateStore{Roots: []*x509.Certificate{env.plasmid.cert}}
+	ctx := dsig.NewDefaultValidationContext(&store)
+
+	doc := etree.NewDocument()
+	if err := doc.ReadFromString(raw); err != nil {
+		t.Fatalf("parse response: %v", err)
+	}
+	if _, err := ctx.Validate(doc.Root()); err != nil {
+		t.Errorf("response signature did not validate: %v", err)
+	}
+
+	start := strings.Index(raw, "<saml:Assertion")
+	end := strings.Index(raw, "</saml:Assertion>")
+	if start < 0 || end < 0 {
+		t.Fatal("no plaintext assertion to validate")
+	}
+	assertionDoc := etree.NewDocument()
+	if err := assertionDoc.ReadFromString(raw[start : end+len("</saml:Assertion>")]); err != nil {
+		t.Fatalf("parse assertion: %v", err)
+	}
+	if _, err := ctx.Validate(assertionDoc.Root()); err != nil {
+		t.Errorf("assertion signature did not validate: %v", err)
+	}
+}
+
+// The startup flag seeds the tamper config rather than bypassing it. An SP that
+// publishes an encryption certificate is asking for encryption, so sending
+// plaintext is a deviation and has to keep showing up as one.
+func TestSendUnencryptedFromStartupSeedsTamperConfig(t *testing.T) {
+	env := newTestEnv(t, func(o *Options) { o.SendUnencrypted = true })
+
+	cfg := env.tamper.GetConfig()
+	if !cfg.Enabled || !cfg.SendUnencrypted {
+		t.Fatalf("expected the tamper config to be seeded, got %+v", cfg)
+	}
+
+	// testsp advertises an encryption certificate, unlike plainsp.
+	raw := loginToSP(t, env, "testsp")
+
+	if strings.Contains(raw, "EncryptedAssertion") {
+		t.Error("expected a plaintext assertion from an SP with an encryption certificate")
+	}
+	if !strings.Contains(raw, "<saml:Assertion") {
+		t.Fatal("no plaintext assertion in the response")
+	}
+	assertSignaturesValid(t, env, raw)
+
+	exchanges := env.inspector.List()
+	if len(exchanges) == 0 {
+		t.Fatal("no exchange recorded")
+	}
+	if !exchanges[0].Tampered {
+		t.Error("dropping encryption deviates from the SP's metadata and must be reported")
 	}
 }

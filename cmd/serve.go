@@ -145,6 +145,7 @@ var serveCmd = &cobra.Command{
 			NameIDFormat:          viper.GetString(config.NameIDFormat),
 			SignatureMethod:       viper.GetString(config.SignatureMethod),
 			IncludeSubjectAddress: viper.GetBool(config.IncludeSubjectAddr),
+			SendUnencrypted:       viper.GetBool(config.SendUnencrypted),
 		})
 		if err != nil {
 			return err
@@ -202,6 +203,13 @@ func init() {
 		ConfigField: config.NameIDFormat,
 	}
 	f.BindString()
+	f = &Flag{
+		Command:     serveCmd,
+		Name:        "send-unencrypted",
+		Usage:       "send assertions signed but unencrypted from startup, so they are readable in the inspector",
+		ConfigField: config.SendUnencrypted,
+	}
+	f.BindBool()
 	f = &Flag{
 		Command:     serveCmd,
 		Name:        "include-subject-address",

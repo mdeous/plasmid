@@ -43,6 +43,9 @@ type Plasmid struct {
 	// dropped by default because RemoteAddr is "host:port" and, behind a
 	// tunnel, loopback.
 	includeSubjectAddress bool
+	// sendUnencrypted seeds the tamper config so assertions go out in the
+	// clear from startup.
+	sendUnencrypted bool
 }
 
 // adminUrl is the address an operator reaches the dashboard on. A wildcard
@@ -90,6 +93,9 @@ func (p *Plasmid) loggingMiddleware(next http.Handler) http.Handler {
 func (p *Plasmid) BuildRoutes() (*internalsml.Inspector, *internalsml.TamperConfig, error) {
 	inspector := internalsml.NewInspector(100)
 	tamperConfig := internalsml.NewTamperConfig()
+	if p.sendUnencrypted {
+		tamperConfig.Update(internalsml.TamperUpdateInput{Enabled: true, SendUnencrypted: true})
+	}
 
 	p.IDP.IDP.AssertionMaker = internalsml.TamperableAssertionMaker{
 		Config:                tamperConfig,
@@ -451,6 +457,13 @@ type Options struct {
 	// "host:port" and behind a tunnel names the tunnel, so a conforming SP
 	// rejects the assertion over it.
 	IncludeSubjectAddress bool
+	// SendUnencrypted turns on the tamper engine's unencrypted-assertion
+	// setting at startup, so the first login is already readable in the
+	// inspector. It is seeded into the tamper config rather than handled
+	// separately: an SP that publishes an encryption certificate is asking for
+	// encryption, so sending plaintext is a deviation and the inspector has to
+	// keep reporting it as one.
+	SendUnencrypted bool
 }
 
 func New(opts Options) (*Plasmid, error) {
@@ -500,5 +513,6 @@ func New(opts Options) (*Plasmid, error) {
 		cert:                  opts.Certificate,
 		nameIDFormat:          opts.NameIDFormat,
 		includeSubjectAddress: opts.IncludeSubjectAddress,
+		sendUnencrypted:       opts.SendUnencrypted,
 	}, nil
 }

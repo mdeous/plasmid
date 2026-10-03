@@ -36,6 +36,7 @@ const (
 	NameIDFormat        = "nameid_format"
 	SignatureMethod     = "signature_method"
 	IncludeSubjectAddr  = "include_subject_address"
+	SendUnencrypted     = "send_unencrypted"
 )
 
 var DefaultValues = map[string]any{
@@ -72,6 +73,10 @@ var DefaultValues = map[string]any{
 	// "host:port" and behind a tunnel is loopback. A conforming SP rejects the
 	// assertion over it, so leave them out unless asked for.
 	IncludeSubjectAddr: false,
+	// Sending a signed but unencrypted assertion to an SP that published an
+	// encryption certificate is a deviation from what it asked for, so it is
+	// off by default and reported as a tamper modification when on.
+	SendUnencrypted: false,
 }
 
 func LoadFile(filePath string) error {

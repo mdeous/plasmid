@@ -20,6 +20,11 @@ signature_method: http://www.w3.org/2001/04/xmldsig-more#rsa-sha256
 # "host:port" and behind a tunnel is loopback, and a conforming SP rejects the
 # assertion over it, so it is left out by default.
 include_subject_address: false
+# send_unencrypted seeds the tamper engine so assertions go out signed but
+# unencrypted from startup, which is the only way to read them in the
+# inspector. An SP that publishes an encryption certificate is asking for
+# encryption, so this is a deviation and is reported as a tamper modification.
+send_unencrypted: false
 cert:
   ca_org: Example Org
   ca_country: FR
