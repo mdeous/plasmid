@@ -65,6 +65,13 @@ func (f *Flag) BindInt() {
 	f.bind()
 }
 
+func (f *Flag) BindBool() {
+	defaultVal := f.Default()
+	b, _ := defaultVal.(bool)
+	f.Flags().BoolP(f.Name, f.ShortHand, b, f.Usage)
+	f.bind()
+}
+
 func (f *Flag) BindStringArray() {
 	defaultVal := f.Default()
 	arr, _ := defaultVal.([]string)

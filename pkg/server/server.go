@@ -39,6 +39,10 @@ type Plasmid struct {
 	key          *rsa.PrivateKey
 	cert         *x509.Certificate
 	nameIDFormat string
+	// includeSubjectAddress keeps the library's subject addresses, which are
+	// dropped by default because RemoteAddr is "host:port" and, behind a
+	// tunnel, loopback.
+	includeSubjectAddress bool
 }
 
 // adminUrl is the address an operator reaches the dashboard on. A wildcard
@@ -87,7 +91,10 @@ func (p *Plasmid) BuildRoutes() (*internalsml.Inspector, *internalsml.TamperConf
 	inspector := internalsml.NewInspector(100)
 	tamperConfig := internalsml.NewTamperConfig()
 
-	p.IDP.IDP.AssertionMaker = internalsml.TamperableAssertionMaker{Config: tamperConfig}
+	p.IDP.IDP.AssertionMaker = internalsml.TamperableAssertionMaker{
+		Config:                tamperConfig,
+		IncludeSubjectAddress: p.includeSubjectAddress,
+	}
 	tamperConfig.SetResigner(internalsml.NewResigner(p.key, p.cert))
 	// The parser differential attacks sign as the IdP rather than as an
 	// attacker, so they get the real key as well as the certificate.
@@ -439,6 +446,11 @@ type Options struct {
 	// are signed with, from SignatureMethods. Empty leaves crewjam/saml's
 	// RSA-SHA1 fallback in place, which most SPs reject.
 	SignatureMethod string
+	// IncludeSubjectAddress keeps the library's SubjectConfirmationData and
+	// SubjectLocality addresses. They are dropped by default: RemoteAddr is
+	// "host:port" and behind a tunnel names the tunnel, so a conforming SP
+	// rejects the assertion over it.
+	IncludeSubjectAddress bool
 }
 
 func New(opts Options) (*Plasmid, error) {
@@ -475,17 +487,18 @@ func New(opts Options) (*Plasmid, error) {
 	}
 
 	return &Plasmid{
-		Host:         opts.Host,
-		Port:         opts.Port,
-		AdminHost:    opts.AdminHost,
-		AdminPort:    opts.AdminPort,
-		IDP:          idpServer,
-		PublicMux:    http.NewServeMux(),
-		AdminMux:     http.NewServeMux(),
-		logger:       opts.Logger,
-		externalUrl:  opts.BaseUrl.String(),
-		key:          opts.Key,
-		cert:         opts.Certificate,
-		nameIDFormat: opts.NameIDFormat,
+		Host:                  opts.Host,
+		Port:                  opts.Port,
+		AdminHost:             opts.AdminHost,
+		AdminPort:             opts.AdminPort,
+		IDP:                   idpServer,
+		PublicMux:             http.NewServeMux(),
+		AdminMux:              http.NewServeMux(),
+		logger:                opts.Logger,
+		externalUrl:           opts.BaseUrl.String(),
+		key:                   opts.Key,
+		cert:                  opts.Certificate,
+		nameIDFormat:          opts.NameIDFormat,
+		includeSubjectAddress: opts.IncludeSubjectAddress,
 	}, nil
 }

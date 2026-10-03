@@ -133,17 +133,18 @@ var serveCmd = &cobra.Command{
 			return err
 		}
 		idp, err := server.New(server.Options{
-			Host:            viper.GetString(config.Host),
-			Port:            viper.GetInt(config.Port),
-			AdminHost:       viper.GetString(config.AdminHost),
-			AdminPort:       viper.GetInt(config.AdminPort),
-			BaseUrl:         baseUrl,
-			Key:             privKey,
-			Certificate:     cert,
-			Store:           idpStore,
-			Logger:          logr,
-			NameIDFormat:    viper.GetString(config.NameIDFormat),
-			SignatureMethod: viper.GetString(config.SignatureMethod),
+			Host:                  viper.GetString(config.Host),
+			Port:                  viper.GetInt(config.Port),
+			AdminHost:             viper.GetString(config.AdminHost),
+			AdminPort:             viper.GetInt(config.AdminPort),
+			BaseUrl:               baseUrl,
+			Key:                   privKey,
+			Certificate:           cert,
+			Store:                 idpStore,
+			Logger:                logr,
+			NameIDFormat:          viper.GetString(config.NameIDFormat),
+			SignatureMethod:       viper.GetString(config.SignatureMethod),
+			IncludeSubjectAddress: viper.GetBool(config.IncludeSubjectAddr),
 		})
 		if err != nil {
 			return err
@@ -201,6 +202,13 @@ func init() {
 		ConfigField: config.NameIDFormat,
 	}
 	f.BindString()
+	f = &Flag{
+		Command:     serveCmd,
+		Name:        "include-subject-address",
+		Usage:       "include the client address in SubjectConfirmationData and SubjectLocality",
+		ConfigField: config.IncludeSubjectAddr,
+	}
+	f.BindBool()
 	f = &Flag{
 		Command:     serveCmd,
 		Name:        "signature-method",

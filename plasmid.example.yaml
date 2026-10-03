@@ -15,6 +15,11 @@ nameid_format: urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress
 # signed with. crewjam/saml falls back to rsa-sha1, which modern SPs reject;
 # select it on purpose to test whether an SP still accepts a downgrade.
 signature_method: http://www.w3.org/2001/04/xmldsig-more#rsa-sha256
+# include_subject_address puts the client address in SubjectConfirmationData
+# and SubjectLocality. The library takes it from RemoteAddr, which is
+# "host:port" and behind a tunnel is loopback, and a conforming SP rejects the
+# assertion over it, so it is left out by default.
+include_subject_address: false
 cert:
   ca_org: Example Org
   ca_country: FR

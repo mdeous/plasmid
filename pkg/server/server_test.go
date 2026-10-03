@@ -1300,3 +1300,81 @@ func TestSignaturesUseConfiguredAlgorithm(t *testing.T) {
 		t.Error("expected a SHA-256 digest method")
 	}
 }
+
+// loginToPlainSP runs an IdP-initiated login against the SP with no encryption
+// certificate and returns the raw response XML.
+func loginToPlainSP(t *testing.T, env *testEnv) string {
+	t.Helper()
+
+	form := url.Values{"user": {"testuser"}, "password": {"testpass"}}
+	req := httptest.NewRequest("POST", "https://idp.example.com/login", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Referer", "https://idp.example.com/login/sp/plainsp")
+	w := httptest.NewRecorder()
+	env.handler.ServeHTTP(w, req)
+	cookie := cookiesForURL(w.Result().Cookies(), "session")
+	if cookie == nil {
+		t.Fatal("POST /login: no session cookie set")
+	}
+
+	req = httptest.NewRequest("GET", "https://idp.example.com/login/sp/plainsp", nil)
+	req.RemoteAddr = "127.0.0.1:53384"
+	req.AddCookie(cookie)
+	w = httptest.NewRecorder()
+	env.handler.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET /login/sp/plainsp: expected 200, got %d; body: %s", w.Code, w.Body.String())
+	}
+
+	decoded, err := base64.StdEncoding.DecodeString(extractFormValue(w.Body.String(), "SAMLResponse"))
+	if err != nil {
+		t.Fatalf("decode SAMLResponse: %v", err)
+	}
+	return string(decoded)
+}
+
+// crewjam/saml fills both subject addresses from RemoteAddr, which is
+// "host:port" and, behind a tunnel, the tunnel's own loopback end. pysaml2
+// rejects such an assertion before it reads any username, so a clean login
+// fails for a reason unrelated to what is being tested.
+func TestAssertionOmitsSubjectAddressByDefault(t *testing.T) {
+	raw := loginToPlainSP(t, newTestEnv(t))
+
+	if strings.Contains(raw, "127.0.0.1") {
+		t.Errorf("assertion still carries the client address:\n%s", raw)
+	}
+	if strings.Contains(raw, "SubjectLocality") {
+		t.Error("expected SubjectLocality to be dropped entirely")
+	}
+	if strings.Contains(raw, "Address=") {
+		t.Error("expected no Address attribute anywhere in the assertion")
+	}
+	// The rest of the subject must survive the normalisation.
+	if !strings.Contains(raw, "Recipient=") {
+		t.Error("Recipient went missing from SubjectConfirmationData")
+	}
+	if !strings.Contains(raw, "AuthnStatement") {
+		t.Error("AuthnStatement went missing")
+	}
+	if !strings.Contains(raw, "AuthnContextClassRef") {
+		t.Error("AuthnContext went missing with SubjectLocality")
+	}
+}
+
+// The library's behaviour stays available for an SP that wants the attribute.
+func TestAssertionKeepsSubjectAddressWhenRequested(t *testing.T) {
+	env := newTestEnv(t)
+	env.plasmid.IDP.IDP.AssertionMaker = internalsml.TamperableAssertionMaker{
+		Config:                env.tamper,
+		IncludeSubjectAddress: true,
+	}
+
+	raw := loginToPlainSP(t, env)
+
+	if !strings.Contains(raw, `Address="127.0.0.1:53384"`) {
+		t.Errorf("expected the client address to be kept:\n%s", raw)
+	}
+	if !strings.Contains(raw, "SubjectLocality") {
+		t.Error("expected SubjectLocality to be kept")
+	}
+}

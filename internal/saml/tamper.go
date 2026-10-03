@@ -284,11 +284,22 @@ func (tc *TamperConfig) RecordModification(mod TamperModification) {
 
 type TamperableAssertionMaker struct {
 	Config *TamperConfig
+	// IncludeSubjectAddress keeps the library's SubjectConfirmationData and
+	// SubjectLocality addresses, which are wrong often enough that they are
+	// dropped by default. See normalizeSubjectAddress.
+	IncludeSubjectAddress bool
 }
 
 func (t TamperableAssertionMaker) MakeAssertion(req *crewsaml.IdpAuthnRequest, session *crewsaml.Session) error {
 	if err := (crewsaml.DefaultAssertionMaker{}).MakeAssertion(req, session); err != nil {
 		return err
+	}
+
+	// Baseline normalisation, not tampering: it runs whether or not the
+	// tamper config is enabled, so a clean login is not rejected for a reason
+	// that has nothing to do with what is being tested.
+	if !t.IncludeSubjectAddress {
+		normalizeSubjectAddress(req.Assertion)
 	}
 
 	if t.Config == nil || !t.Config.IsEnabled() {

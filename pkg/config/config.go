@@ -35,6 +35,7 @@ const (
 	SPMetadata          = "sp.metadata"
 	NameIDFormat        = "nameid_format"
 	SignatureMethod     = "signature_method"
+	IncludeSubjectAddr  = "include_subject_address"
 )
 
 var DefaultValues = map[string]any{
@@ -67,6 +68,10 @@ var DefaultValues = map[string]any{
 	// dsig.RSASHA256SignatureMethod, spelled out so this package stays free of
 	// the signing library.
 	SignatureMethod: "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256",
+	// crewjam/saml fills the subject addresses from RemoteAddr, which is
+	// "host:port" and behind a tunnel is loopback. A conforming SP rejects the
+	// assertion over it, so leave them out unless asked for.
+	IncludeSubjectAddr: false,
 }
 
 func LoadFile(filePath string) error {
