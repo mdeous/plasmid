@@ -94,13 +94,14 @@ func GenerateCertificate(
 	locality string,
 	address string,
 	postCode string,
-	expirationYears int,
+	expirationDays int,
 ) (*x509.Certificate, error) {
 	serialNumber, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
 	if err != nil {
 		return nil, fmt.Errorf("unable to generate serial number: %v", err)
 	}
 
+	now := time.Now().UTC()
 	ca := &x509.Certificate{
 		SerialNumber: serialNumber,
 		Subject: pkix.Name{
@@ -111,8 +112,11 @@ func GenerateCertificate(
 			StreetAddress: []string{address},
 			PostalCode:    []string{postCode},
 		},
-		NotBefore:             time.Now(),
-		NotAfter:              time.Now().AddDate(expirationYears, 0, 0),
+		// UTC because AddDate on a local time crosses DST boundaries: thirty
+		// days from a CEST afternoon lands an hour late in CET. x509 serializes
+		// both as UTC regardless, so this only fixes the arithmetic.
+		NotBefore:             now,
+		NotAfter:              now.AddDate(0, 0, expirationDays),
 		IsCA:                  true,
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
 		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,

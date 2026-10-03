@@ -102,18 +102,28 @@ For example the environment variable for the YAML entry `user.username` is `IDP_
 An example YAML file with all the configurable options and their default values is provided in
 [`plasmid.example.yaml`](plasmid.example.yaml) at the root of the project folder.
 
-### Keeping an identity across an assessment
+### Scoping an identity to an assessment
 
 Point `cert.certificate_file` and `cert.key_file` (or `serve --cert-file` and
 `--key-file`) at a pair you want to keep, and Plasmid will load it instead of
 generating a new one. The certificate is what the IdP metadata publishes, so an
 SP configured once keeps working across restarts.
 
+A generated certificate lasts **30 days** (`cert.ca_exp_days`). That is long
+enough not to interrupt an engagement and short enough that the material stops
+being useful once the engagement ends — this certificate is, in effect,
+credentials for every SP it was wired into.
+
 The metadata's `validUntil` follows that certificate's expiry rather than a
-fixed window, so the document does not expire before the key material it
-advertises. `metadata_valid_days` overrides it, in days, which is useful to
+fixed window, so the document and the key material it advertises stop at the
+same moment. `metadata_valid_days` overrides it, in days, which is useful to
 check whether an SP enforces `validUntil` at all. `cacheDuration` stays at 48h
 either way, so an SP still re-fetches after a certificate swap.
+
+Treat expiry as hygiene, not as a kill switch: plenty of SAML implementations
+pin the signing certificate and verify only the signature, never checking
+`NotAfter` or `validUntil`. If an identity must be unusable after the
+engagement, delete the key file.
 
 Two things fail loudly rather than quietly:
 

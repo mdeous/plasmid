@@ -21,7 +21,7 @@ const (
 	CertCaLocality      = "cert.ca_locality"
 	CertCaAddress       = "cert.ca_address"
 	CertCaPostcode      = "cert.ca_postcode"
-	CertCaExpYears      = "cert.ca_exp_years"
+	CertCaExpDays       = "cert.ca_exp_days"
 	CertCertificateFile = "cert.certificate_file"
 	CertKeyFile         = "cert.key_file"
 	CertKeySize         = "cert.key_size"
@@ -42,17 +42,20 @@ const (
 )
 
 var DefaultValues = map[string]any{
-	Host:                "127.0.0.1",
-	Port:                8000,
-	BaseUrl:             "http://127.0.0.1:8000",
-	AdminHost:           "127.0.0.1",
-	AdminPort:           8001,
-	CertCaOrg:           "Example Org",
-	CertCaCountry:       "FR",
-	CertCaState:         "Ile de France",
-	CertCaLocality:      "Paris",
-	CertCaPostcode:      "75001",
-	CertCaExpYears:      1,
+	Host:           "127.0.0.1",
+	Port:           8000,
+	BaseUrl:        "http://127.0.0.1:8000",
+	AdminHost:      "127.0.0.1",
+	AdminPort:      8001,
+	CertCaOrg:      "Example Org",
+	CertCaCountry:  "FR",
+	CertCaState:    "Ile de France",
+	CertCaLocality: "Paris",
+	CertCaPostcode: "75001",
+	// The IdP certificate is credentials for whatever SP it is wired into, so
+	// it is scoped to an engagement rather than left usable for a year. The
+	// metadata's validUntil follows it, so both stop at the same moment.
+	CertCaExpDays:       30,
 	CertKeySize:         2048,
 	CertCertificateFile: "plasmid-cert.pem",
 	CertKeyFile:         "plasmid-key.pem",

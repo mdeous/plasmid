@@ -29,11 +29,11 @@ send_unencrypted: false
 # Leave it empty to skip the export and serve the document on /metadata only.
 metadata_file: idp-metadata.xml
 # metadata_valid_days is how far out the metadata's validUntil is set. Zero
-# tracks the signing certificate's own expiry, so a pinned certificate and the
-# document advertising it cannot disagree. crewjam/saml would otherwise stamp
-# 48h here regardless of the certificate, which reads to an SP as the IdP
-# expiring in two days. Set a positive value to probe an SP that enforces
-# validUntil.
+# tracks the signing certificate's own expiry (see cert.ca_exp_days), so a
+# pinned certificate and the document advertising it cannot disagree.
+# crewjam/saml would otherwise stamp 48h here regardless of the certificate,
+# which reads to an SP as the IdP expiring in two days. Set a positive value to
+# probe an SP that enforces validUntil.
 metadata_valid_days: 0
 cert:
   ca_org: Example Org
@@ -42,9 +42,11 @@ cert:
   ca_locality: Paris
   ca_address: ""
   ca_postcode: 75001
-  # ca_exp_years is the generated certificate's own lifetime. It is also what
-  # metadata_valid_days defaults to following.
-  ca_exp_years: 1
+  # ca_exp_days is the generated certificate's lifetime. This certificate is
+  # credentials for whatever SP it gets wired into, so it is scoped to an
+  # engagement rather than left usable for a year. metadata_valid_days follows
+  # it by default, so the document and the key material stop at the same moment.
+  ca_exp_days: 30
   key_size: 2048
   # certificate_file and key_file determine where the cert and priv key
   # are saved to / loaded from. Plasmid will attempt to load them, and

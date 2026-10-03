@@ -42,9 +42,10 @@ func TestMetadataValidUntilTracksCertificate(t *testing.T) {
 		t.Errorf("validUntil = %v, want the certificate NotAfter %v (diff %v)", ed.ValidUntil, want, diff)
 	}
 
-	// The whole point is that this is far out, not the library's 48h.
-	if time.Until(ed.ValidUntil) < 300*24*time.Hour {
-		t.Errorf("validUntil %v is less than 300 days out, expected to track the 1-year test certificate", ed.ValidUntil)
+	// The whole point is that this follows the certificate rather than the
+	// library's 48h, so it has to be well clear of 48h.
+	if remaining := time.Until(ed.ValidUntil); remaining < 20*24*time.Hour {
+		t.Errorf("validUntil %v is only %v out, expected to track the 30-day test certificate", ed.ValidUntil, remaining)
 	}
 }
 
@@ -61,13 +62,16 @@ func TestMetadataCacheDurationUnchanged(t *testing.T) {
 }
 
 func TestMetadataValidDaysOverride(t *testing.T) {
-	env := newTestEnv(t, func(o *Options) { o.MetadataValidDays = 30 })
+	// Shorter than the fixture certificate, so the override is distinguishable
+	// from the certificate-tracking default.
+	const overrideDays = 7
+	env := newTestEnv(t, func(o *Options) { o.MetadataValidDays = overrideDays })
 
 	_, ed := parseMetadata(t, env.plasmid)
 
 	// Computed in UTC like the production path: AddDate on a local time can
-	// cross a DST boundary and land an hour off exactly 30*24h.
-	want := saml.TimeNow().AddDate(0, 0, 30)
+	// cross a DST boundary and land an hour off exactly n*24h.
+	want := saml.TimeNow().AddDate(0, 0, overrideDays)
 	if diff := ed.ValidUntil.Sub(want); diff > time.Minute || diff < -time.Minute {
 		t.Errorf("validUntil = %v, want ~%v (diff %v)", ed.ValidUntil, want, diff)
 	}
@@ -125,7 +129,7 @@ func TestNewRejectsMismatchedKeyPair(t *testing.T) {
 	if err != nil {
 		t.Fatalf("generate key: %v", err)
 	}
-	cert, err := utils.GenerateCertificate(key, "Test IDP", "US", "CA", "LA", "", "", 1)
+	cert, err := utils.GenerateCertificate(key, "Test IDP", "US", "CA", "LA", "", "", 30)
 	if err != nil {
 		t.Fatalf("generate cert: %v", err)
 	}

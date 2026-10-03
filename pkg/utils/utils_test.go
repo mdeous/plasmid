@@ -31,7 +31,7 @@ func TestGenerateCertificate(t *testing.T) {
 		t.Fatalf("GeneratePrivateKey returned error: %v", err)
 	}
 
-	cert, err := GenerateCertificate(key, "TestOrg", "US", "California", "San Francisco", "123 Main St", "94105", 5)
+	cert, err := GenerateCertificate(key, "TestOrg", "US", "California", "San Francisco", "123 Main St", "94105", 30)
 	if err != nil {
 		t.Fatalf("GenerateCertificate returned error: %v", err)
 	}
@@ -63,7 +63,9 @@ func TestGenerateCertificate(t *testing.T) {
 		t.Error("expected serial number to be random, got 1000")
 	}
 
-	expectedExpiry := time.Now().AddDate(5, 0, 0)
+	// UTC like GenerateCertificate, which would otherwise differ by an hour
+	// across a DST boundary.
+	expectedExpiry := time.Now().UTC().AddDate(0, 0, 30)
 	diff := cert.NotAfter.Sub(expectedExpiry)
 	if diff < -time.Minute || diff > time.Minute {
 		t.Errorf("expected expiry around %v, got %v", expectedExpiry, cert.NotAfter)
@@ -112,7 +114,7 @@ func TestCertificateRoundTrip(t *testing.T) {
 		t.Fatalf("GeneratePrivateKey returned error: %v", err)
 	}
 
-	cert, err := GenerateCertificate(key, "RoundTripOrg", "DE", "Bavaria", "Munich", "456 Oak Ave", "80331", 3)
+	cert, err := GenerateCertificate(key, "RoundTripOrg", "DE", "Bavaria", "Munich", "456 Oak Ave", "80331", 30)
 	if err != nil {
 		t.Fatalf("GenerateCertificate returned error: %v", err)
 	}
@@ -210,7 +212,7 @@ func TestKeyPairMatches(t *testing.T) {
 	if err != nil {
 		t.Fatalf("generate key: %v", err)
 	}
-	cert, err := GenerateCertificate(key, "TestOrg", "US", "California", "San Francisco", "", "94105", 1)
+	cert, err := GenerateCertificate(key, "TestOrg", "US", "California", "San Francisco", "", "94105", 30)
 	if err != nil {
 		t.Fatalf("generate certificate: %v", err)
 	}

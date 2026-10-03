@@ -112,3 +112,18 @@ func stringFlagOrConfig(cmd *cobra.Command, flagName, configKey string) string {
 	}
 	return viper.GetString(configKey)
 }
+
+// warnLegacyCertExpiry flags the key cert.ca_exp_days replaced. viper ignores
+// an unknown key without a word, so a config still carrying ca_exp_years would
+// quietly get the new default instead of the lifetime it asked for - and this
+// one decides how long the IdP's credentials stay usable. Can go once nobody
+// is carrying an old config.
+func warnLegacyCertExpiry() {
+	const legacyKey = "cert.ca_exp_years"
+	if viper.IsSet(legacyKey) {
+		logr.Warn(
+			"'"+legacyKey+"' is no longer read, use 'cert.ca_exp_days' instead",
+			"ca_exp_days", viper.GetInt(config.CertCaExpDays),
+		)
+	}
+}

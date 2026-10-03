@@ -33,6 +33,8 @@ var serveCmd = &cobra.Command{
 			err     error
 		)
 
+		warnLegacyCertExpiry()
+
 		keyFile := stringFlagOrConfig(cmd, "key-file", config.CertKeyFile)
 		_, err = os.Stat(keyFile)
 		if errors.Is(err, os.ErrNotExist) {
@@ -64,7 +66,7 @@ var serveCmd = &cobra.Command{
 				viper.GetString(config.CertCaLocality),
 				viper.GetString(config.CertCaAddress),
 				viper.GetString(config.CertCaPostcode),
-				viper.GetInt(config.CertCaExpYears),
+				viper.GetInt(config.CertCaExpDays),
 			)
 			if err != nil {
 				return err

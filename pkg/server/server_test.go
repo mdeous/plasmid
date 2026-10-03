@@ -57,7 +57,7 @@ func newTestEnv(t *testing.T, tweaks ...func(*Options)) *testEnv {
 	if err != nil {
 		t.Fatalf("generate IDP key: %v", err)
 	}
-	idpCert, err := utils.GenerateCertificate(idpKey, "Test IDP", "US", "CA", "LA", "", "", 1)
+	idpCert, err := utils.GenerateCertificate(idpKey, "Test IDP", "US", "CA", "LA", "", "", 30)
 	if err != nil {
 		t.Fatalf("generate IDP cert: %v", err)
 	}
@@ -66,7 +66,7 @@ func newTestEnv(t *testing.T, tweaks ...func(*Options)) *testEnv {
 	if err != nil {
 		t.Fatalf("generate SP key: %v", err)
 	}
-	spCert, err := utils.GenerateCertificate(spKey, "Test SP", "US", "CA", "LA", "", "", 1)
+	spCert, err := utils.GenerateCertificate(spKey, "Test SP", "US", "CA", "LA", "", "", 30)
 	if err != nil {
 		t.Fatalf("generate SP cert: %v", err)
 	}
