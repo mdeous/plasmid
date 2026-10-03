@@ -24,6 +24,7 @@ import (
 
 	internalsml "github.com/mdeous/plasmid/internal/saml"
 	"github.com/mdeous/plasmid/internal/web"
+	"github.com/mdeous/plasmid/pkg/utils"
 )
 
 type Plasmid struct {
@@ -46,6 +47,9 @@ type Plasmid struct {
 	// sendUnencrypted seeds the tamper config so assertions go out in the
 	// clear from startup.
 	sendUnencrypted bool
+	// metadataValidDays overrides the validUntil the metadata advertises. Zero
+	// tracks the signing certificate's NotAfter.
+	metadataValidDays int
 }
 
 // adminUrl is the address an operator reaches the dashboard on. A wildcard
@@ -71,6 +75,34 @@ func (p *Plasmid) Metadata() ([]byte, error) {
 			}
 		}
 	}
+	// crewjam/saml stamps validUntil 48h out (its DefaultValidDuration) and
+	// never consults the signing certificate, so an instance pinned to a
+	// long-lived cert still publishes metadata that expires days before its key
+	// material does. Track the certificate instead, unless an explicit window
+	// was asked for.
+	//
+	// This is set here rather than through saml.IdentityProvider.ValidDuration
+	// because that field is a duration added to call time: deriving it from
+	// NotAfter once at startup would let validUntil creep past the certificate's
+	// actual expiry as the process runs. Assigning the instant is exact, and is
+	// recomputed on every request.
+	//
+	// ValidUntil is always assigned: saml.RelaxedTime formats unconditionally,
+	// so leaving it zero would emit validUntil="0001-01-01T00:00:00Z".
+	//
+	// saml.TimeNow is UTC, which has no DST transitions, so AddDate there is
+	// exactly days*24h. The same call on a local time would land an hour off
+	// across a boundary.
+	if p.metadataValidDays > 0 {
+		metaDescriptor.ValidUntil = saml.TimeNow().AddDate(0, 0, p.metadataValidDays)
+	} else {
+		metaDescriptor.ValidUntil = p.cert.NotAfter
+	}
+	// CacheDuration is deliberately left at the library's 48h. It answers a
+	// different question — how long before an SP re-fetches, not when the
+	// document stops being valid — and keeping it short is what lets an SP pick
+	// up a regenerated certificate mid-assessment.
+
 	meta, err := xml.MarshalIndent(metaDescriptor, "", " ")
 	if err != nil {
 		return []byte{}, fmt.Errorf("failed to serialize idp metadata: %v", err)
@@ -464,11 +496,25 @@ type Options struct {
 	// encryption, so sending plaintext is a deviation and the inspector has to
 	// keep reporting it as one.
 	SendUnencrypted bool
+	// MetadataValidDays is how far out the metadata's validUntil is set, in
+	// days. Zero tracks the signing certificate's NotAfter, which is what keeps
+	// a pinned certificate and the document advertising it from disagreeing. A
+	// positive value overrides that, to probe an SP that enforces validUntil.
+	MetadataValidDays int
 }
 
 func New(opts Options) (*Plasmid, error) {
 	if err := validateSignatureMethod(opts.SignatureMethod); err != nil {
 		return nil, err
+	}
+
+	// Guard the half-persisted pair. cmd/serve loads the key and certificate
+	// from two paths it stats independently, so a surviving certificate beside a
+	// missing key yields a fresh key signing under the old certificate. Every SP
+	// then rejects every assertion, and nothing in the rejection names the
+	// cause. Checked here so no entry point can skip it.
+	if !utils.KeyPairMatches(opts.Key, opts.Certificate) {
+		return nil, fmt.Errorf("certificate does not carry the public half of the private key")
 	}
 
 	loginTmpl, err := web.LoginFormTemplate()
@@ -514,5 +560,6 @@ func New(opts Options) (*Plasmid, error) {
 		nameIDFormat:          opts.NameIDFormat,
 		includeSubjectAddress: opts.IncludeSubjectAddress,
 		sendUnencrypted:       opts.SendUnencrypted,
+		metadataValidDays:     opts.MetadataValidDays,
 	}, nil
 }

@@ -35,9 +35,11 @@ var configGroupOrder = []struct {
 }
 
 var serverTopLevelKeys = map[string]bool{
-	"host":     true,
-	"port":     true,
-	"base_url": true,
+	"host":                true,
+	"port":                true,
+	"base_url":            true,
+	"metadata_file":       true,
+	"metadata_valid_days": true,
 }
 
 func (h *WebHandler) handleSettings(w http.ResponseWriter, r *http.Request) {

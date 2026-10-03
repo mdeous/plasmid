@@ -37,6 +37,8 @@ const (
 	SignatureMethod     = "signature_method"
 	IncludeSubjectAddr  = "include_subject_address"
 	SendUnencrypted     = "send_unencrypted"
+	MetadataFile        = "metadata_file"
+	MetadataValidDays   = "metadata_valid_days"
 )
 
 var DefaultValues = map[string]any{
@@ -77,6 +79,15 @@ var DefaultValues = map[string]any{
 	// encryption certificate is a deviation from what it asked for, so it is
 	// off by default and reported as a tamper modification when on.
 	SendUnencrypted: false,
+	// metadata_file is where the IdP metadata document is exported at startup.
+	// Empty skips the export, leaving GET /metadata as the only way to get it.
+	MetadataFile: "idp-metadata.xml",
+	// crewjam/saml advertises validUntil 48h out and never looks at the signing
+	// certificate, so an instance meant to survive an assessment publishes
+	// metadata that expires days before its key material does. Zero means track
+	// the certificate's own NotAfter; a positive value overrides it, in days,
+	// which is what probes an SP that enforces validUntil.
+	MetadataValidDays: 0,
 }
 
 func LoadFile(filePath string) error {
