@@ -443,7 +443,10 @@ tr.empty-state-row td {
 
 .toast-close:hover { opacity: 0.7; }
 
-/* Form submit buttons that should size to content, not full-width */
+/* Form submit buttons that should size to content, not full-width.
+   Pico sets button[type=submit] to 100%, which outranks a bare class, so the
+   submit case is spelled out to win on specificity. */
+button[type=submit].inline-submit,
 .inline-submit {
     width: auto;
     display: inline-block;
