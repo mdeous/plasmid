@@ -2,6 +2,7 @@ package web
 
 import (
 	"bytes"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -13,6 +14,13 @@ import (
 type serviceView struct {
 	Name     string
 	EntityID string
+	LoginURL string
+}
+
+// serviceLoginURL is the IdP-initiated login URL for a service, which needs no
+// stored shortcut.
+func (h *WebHandler) serviceLoginURL(name string) string {
+	return fmt.Sprintf("%s/login/sp/%s", h.baseURL, name)
 }
 
 func (h *WebHandler) loadServices() []serviceView {
@@ -24,9 +32,14 @@ func (h *WebHandler) loadServices() []serviceView {
 			h.logger.Error("failed to load service", "name", name, "error", err)
 			continue
 		}
+		// The name comes from the store key, not s.Name: samlidp's
+		// HandlePutService leaves that field empty, so a service registered
+		// through "client sp-add" would otherwise render as a blank row whose
+		// row actions and login URL address nothing.
 		services = append(services, serviceView{
-			Name:     s.Name,
+			Name:     name,
 			EntityID: s.Metadata.EntityID,
+			LoginURL: h.serviceLoginURL(name),
 		})
 	}
 	return services
@@ -104,6 +117,7 @@ func (h *WebHandler) handleServiceCreate(w http.ResponseWriter, r *http.Request)
 		h.renderPartial(w, "service_row", serviceView{
 			Name:     svc.Name,
 			EntityID: svc.Descriptor.EntityID,
+			LoginURL: h.serviceLoginURL(svc.Name),
 		})
 	}
 }

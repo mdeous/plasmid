@@ -3,6 +3,7 @@
     <td>{{.Name}}</td>
     <td><code>{{.EntityID}}</code></td>
     <td>
+        <a href="{{.LoginURL}}" target="_blank" role="button" class="outline" title="IdP-initiated login">Login</a>
         <button class="secondary outline" hx-delete="/ui/services/{{.Name}}" hx-target="closest tr" hx-swap="outerHTML swap:0.3s" hx-confirm="Delete service {{.Name}}?">Delete</button>
     </td>
 </tr>

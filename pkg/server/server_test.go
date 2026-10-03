@@ -760,7 +760,7 @@ func TestAdminSurfaceServedOnAdminListener(t *testing.T) {
 func TestSAMLEndpointsNotOnAdminListener(t *testing.T) {
 	env := newTestEnv(t)
 
-	for _, path := range []string{"/sso", "/metadata", "/login/testshortcut"} {
+	for _, path := range []string{"/sso", "/metadata", "/login/testshortcut", "/login/sp/testsp"} {
 		req := httptest.NewRequest("GET", "http://127.0.0.1:8001"+path, nil)
 		w := httptest.NewRecorder()
 		env.admin.ServeHTTP(w, req)
@@ -1029,4 +1029,100 @@ func TestDumpLiveParserDiffPayload(t *testing.T) {
 	}
 	t.Logf("wrote %s and %s", path, certPath)
 	t.Logf("ACS=%s entity=%s", env.sp.AcsURL.String(), env.sp.MetadataURL.String())
+}
+
+// GET /login/sp/{name} logs into a registered SP without a stored shortcut.
+func TestServiceLoginFlow(t *testing.T) {
+	env := newTestEnv(t)
+
+	// Step 1: the login form, with no shortcut in the store.
+	req := httptest.NewRequest("GET", "https://idp.example.com/login/sp/testsp", nil)
+	w := httptest.NewRecorder()
+	env.handler.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET /login/sp/testsp: expected 200, got %d; body: %s", w.Code, w.Body.String())
+	}
+	if body := w.Body.String(); !strings.Contains(body, "user") || !strings.Contains(body, "password") {
+		t.Fatal("login page missing form fields")
+	}
+
+	// Step 2: the form posts to /login, and handleLogin's Referer fallback has
+	// to send the operator back here — the path stays under /login/ for exactly
+	// this reason.
+	form := url.Values{"user": {"testuser"}, "password": {"testpass"}}
+	req = httptest.NewRequest("POST", "https://idp.example.com/login", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Referer", "https://idp.example.com/login/sp/testsp")
+	w = httptest.NewRecorder()
+	env.handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusSeeOther {
+		t.Fatalf("POST /login: expected 303, got %d; body: %s", w.Code, w.Body.String())
+	}
+	if location := w.Header().Get("Location"); location != "/login/sp/testsp" {
+		t.Fatalf("POST /login: expected redirect to /login/sp/testsp, got %q", location)
+	}
+	sessionCookie := cookiesForURL(w.Result().Cookies(), "session")
+	if sessionCookie == nil {
+		t.Fatal("POST /login: no session cookie set")
+	}
+
+	// Step 3: the assertion.
+	req = httptest.NewRequest("GET", "https://idp.example.com/login/sp/testsp", nil)
+	req.AddCookie(sessionCookie)
+	w = httptest.NewRecorder()
+	env.handler.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET /login/sp/testsp with session: expected 200, got %d; body: %s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), `name="SAMLResponse"`) {
+		t.Fatal("response missing SAMLResponse form field")
+	}
+}
+
+func TestServiceLoginUnknownService(t *testing.T) {
+	env := newTestEnv(t)
+
+	req := httptest.NewRequest("GET", "https://idp.example.com/login/sp/nosuchservice", nil)
+	w := httptest.NewRecorder()
+	env.handler.ServeHTTP(w, req)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("GET /login/sp/nosuchservice: expected 404, got %d", w.Code)
+	}
+}
+
+// The service login route has to sit inside the intercept middleware. Without
+// it the response is never buffered, so every post-sign transform and the
+// RelayState override are silently skipped while assertion-level tampering
+// still applies — a quiet half-working state.
+func TestServiceLoginGoesThroughTamperMiddleware(t *testing.T) {
+	env := newTestEnv(t)
+	env.tamper.Update(internalsml.TamperUpdateInput{Enabled: true, RelayState: "tampered-relay"})
+
+	form := url.Values{"user": {"testuser"}, "password": {"testpass"}}
+	req := httptest.NewRequest("POST", "https://idp.example.com/login", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Referer", "https://idp.example.com/login/sp/testsp")
+	w := httptest.NewRecorder()
+	env.handler.ServeHTTP(w, req)
+	sessionCookie := cookiesForURL(w.Result().Cookies(), "session")
+	if sessionCookie == nil {
+		t.Fatal("POST /login: no session cookie set")
+	}
+
+	req = httptest.NewRequest("GET", "https://idp.example.com/login/sp/testsp", nil)
+	req.AddCookie(sessionCookie)
+	w = httptest.NewRecorder()
+	env.handler.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET /login/sp/testsp: expected 200, got %d; body: %s", w.Code, w.Body.String())
+	}
+
+	body := w.Body.String()
+	if got := extractFormValue(body, "RelayState"); got != "tampered-relay" {
+		t.Errorf("RelayState = %q, want %q", got, "tampered-relay")
+	}
+	if len(env.inspector.List()) == 0 {
+		t.Error("expected the exchange to be recorded by the inspector")
+	}
 }

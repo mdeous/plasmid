@@ -96,6 +96,13 @@ func (p *Plasmid) BuildRoutes() (*internalsml.Inspector, *internalsml.TamperConf
 	p.PublicMux.Handle("/login", idpHandler)
 	p.PublicMux.Handle("/login/{shortcut}", idpHandler)
 	p.PublicMux.Handle("/login/{shortcut}/{suffix}", idpHandler)
+	// IdP-initiated login for a registered SP without a stored shortcut. The
+	// path has to stay under /login/ for handleLogin's Referer fallback to
+	// return here after the login form, and it must go through the same
+	// middleware or every post-sign transform is skipped.
+	p.PublicMux.Handle("GET /login/sp/{name}", internalsml.InterceptMiddleware(
+		inspector, tamperConfig, p.logger, http.HandlerFunc(p.handleServiceLogin),
+	))
 	p.PublicMux.Handle("GET /metadata", idpHandler)
 	p.PublicMux.Handle("/sso", ssoHandler)
 	p.PublicMux.Handle("/sso/", ssoHandler)
@@ -262,6 +269,24 @@ func (p *Plasmid) handleLogin(w http.ResponseWriter, r *http.Request) {
 	// A bare login with no SAML context has nowhere to go on this listener:
 	// the dashboard lives on the admin one, so send the operator there.
 	http.Redirect(w, r, p.adminUrl()+"/ui/", http.StatusSeeOther)
+}
+
+// handleServiceLogin starts an IdP-initiated flow for a registered service by
+// name, so plain IdP-initiated login needs no stored shortcut. A shortcut is
+// still the way to pin a RelayState.
+//
+// This calls into the IdP without samlidp's unexported idpConfigMu: that mutex
+// guards the serviceProviders map, and ServeIDPInitiated resolves the SP
+// through GetServiceProvider, which takes the read lock itself.
+func (p *Plasmid) handleServiceLogin(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	var service samlidp.Service
+	if err := p.IDP.Store.Get("/services/"+name, &service); err != nil {
+		p.logger.Warn("no such service for IdP-initiated login", "name", name, "error", err)
+		http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+		return
+	}
+	p.IDP.IDP.ServeIDPInitiated(w, r, service.Metadata.EntityID, "")
 }
 
 // deflateBase64 converts a POST-binding SAMLRequest (plain base64 of the raw

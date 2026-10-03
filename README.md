@@ -313,6 +313,7 @@ the admin listener by default, and `--url` overrides it.
 | `GET`/`POST` | `/login`                           | login handler              |
 | `GET`        | `/login/<link-name>`               | begin flow                 |
 | `GET`        | `/login/<link-name>/<relay-state>` | begin flow with RelayState |
+| `GET`        | `/login/sp/<service-name>`         | begin flow for a registered SP, no shortcut needed |
 
 #### Identity provider initiated flow links management
 
