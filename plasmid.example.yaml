@@ -7,6 +7,10 @@ base_url: http://127.0.0.1:8000
 # authenticates the caller, so keep this bound to loopback and never tunnel it.
 admin_host: 127.0.0.1
 admin_port: 8001
+# nameid_format is stamped onto every session and advertised in the IdP
+# metadata. The library's own default is transient, which most SPs cannot
+# resolve to a user. Leave this empty to get that default back.
+nameid_format: urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress
 cert:
   ca_org: Example Org
   ca_country: FR
