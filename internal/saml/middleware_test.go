@@ -135,3 +135,39 @@ func TestInterceptMiddlewareDropsStaleModifications(t *testing.T) {
 		t.Errorf("expected a RelayState modification, got %q", response.Modifications[0].Field)
 	}
 }
+
+// The inspector's raw view used to emit every namespace declaration twice, once
+// as the element's resolved namespace and once as a leftover attribute that got
+// mangled into an "_xmlns:" pseudo-prefix.
+func TestFormatXMLKeepsNamespaceDeclarationsIntact(t *testing.T) {
+	raw := `<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"` +
+		` xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" ID="id-1">` +
+		`<saml:Issuer>https://idp.example.com/metadata</saml:Issuer>` +
+		`<samlp:Status><samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/></samlp:Status>` +
+		`</samlp:Response>`
+
+	got := formatXML(raw)
+
+	if strings.Contains(got, "_xmlns") {
+		t.Errorf("namespace declaration was mangled into a pseudo-prefix:\n%s", got)
+	}
+	if n := strings.Count(got, `xmlns:samlp=`); n != 1 {
+		t.Errorf("expected one samlp declaration, got %d:\n%s", n, got)
+	}
+	if n := strings.Count(got, `xmlns:saml=`); n != 1 {
+		t.Errorf("expected one saml declaration, got %d:\n%s", n, got)
+	}
+	if !strings.Contains(got, "<saml:Issuer>https://idp.example.com/metadata</saml:Issuer>") {
+		t.Errorf("prefixed element text did not survive indenting:\n%s", got)
+	}
+}
+
+// A malformed payload is shown exactly as it went out rather than being dropped
+// or rewritten, which is what the parser differential modes need.
+func TestFormatXMLPassesThroughUnparseableInput(t *testing.T) {
+	raw := `<samlp:Response><unclosed>`
+
+	if got := formatXML(raw); got != raw {
+		t.Errorf("expected unparseable input to be returned unchanged, got: %s", got)
+	}
+}

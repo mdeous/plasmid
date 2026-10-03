@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/beevik/etree"
 	crewsaml "github.com/crewjam/saml"
 )
 
@@ -295,24 +296,29 @@ func captureOutbound(inspector *Inspector, tamperConfig *TamperConfig, logger *s
 	inspector.Record(exchange)
 }
 
+// formatXML indents a SAML document for the inspector's raw view.
+//
+// This goes through etree rather than an encoding/xml decoder-to-encoder round
+// trip. That round trip reported every namespace declaration both as the
+// element's resolved namespace and as a plain attribute, so the encoder emitted
+// each one twice and mangled the second copy into an "_xmlns:" pseudo-prefix.
+// The result was still only a display artifact, since the bytes on the wire
+// come from the library, but it made the pane unreadable.
+//
+// A document etree cannot parse is returned unchanged, which is what the parser
+// differential modes want anyway: their payloads are deliberately malformed and
+// are worth seeing exactly as they went out.
 func formatXML(raw string) string {
-	var buf bytes.Buffer
-	decoder := xml.NewDecoder(strings.NewReader(raw))
-	encoder := xml.NewEncoder(&buf)
-	encoder.Indent("", "  ")
-	for {
-		tok, err := decoder.Token()
-		if err != nil {
-			break
-		}
-		if err := encoder.EncodeToken(tok); err != nil {
-			return raw
-		}
-	}
-	if err := encoder.Flush(); err != nil {
+	doc := etree.NewDocument()
+	if err := doc.ReadFromString(raw); err != nil {
 		return raw
 	}
-	return buf.String()
+	doc.Indent(2)
+	formatted, err := doc.WriteToString()
+	if err != nil {
+		return raw
+	}
+	return formatted
 }
 
 func decodeSAMLRequest(encoded string) (string, error) {
