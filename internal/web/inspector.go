@@ -24,6 +24,7 @@ func (h *WebHandler) RegisterInspectorRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /ui/inspector/exchanges", h.handleInspectorExchanges)
 	mux.HandleFunc("GET /ui/inspector/close", h.handleInspectorClose)
 	mux.HandleFunc("GET /ui/inspector/{id}/replay", h.handleReplay)
+	mux.HandleFunc("GET /ui/inspector/{id}/raw", h.handleInspectorRaw)
 	mux.HandleFunc("GET /ui/inspector/{id}", h.handleInspectorDetail)
 	mux.HandleFunc("POST /ui/inspector/clear", h.handleInspectorClear)
 	mux.HandleFunc("GET /ui/tamper", h.handleTamper)
@@ -183,6 +184,37 @@ func (h *WebHandler) handleReplay(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.renderPartial(w, "replay_form", exchange)
+}
+
+// handleInspectorRaw serves the captured bytes exactly as they went over the
+// wire, with no re-serialisation of any kind. The pane next to it is indented
+// for reading, and XML DSig canonicalisation is whitespace-sensitive, so the
+// pretty copy can never verify — this is the endpoint to extract a message from
+// for analysis or replay.
+//
+// It stays on the admin mux with the rest of /ui/ and adds no CORS headers. The
+// attachment disposition and nosniff keep a browser from rendering captured XML
+// as a document on an origin that authenticates nobody, while a same-origin
+// fetch (the pane's Copy button) still reads the body.
+func (h *WebHandler) handleInspectorRaw(w http.ResponseWriter, r *http.Request) {
+	if h.inspector == nil {
+		http.NotFound(w, r)
+		return
+	}
+	id := r.PathValue("id")
+	exchange := h.inspector.Get(id)
+	if exchange == nil {
+		http.NotFound(w, r)
+		return
+	}
+	if exchange.RawXML == "" {
+		http.Error(w, "No captured XML for this exchange", http.StatusBadRequest)
+		return
+	}
+	w.Header().Set("Content-Type", "application/xml; charset=utf-8")
+	w.Header().Set("Content-Disposition", `attachment; filename="saml-`+exchange.ID+`.xml"`)
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	_, _ = w.Write([]byte(exchange.RawXML))
 }
 
 // signKeyMode drops anything the form did not offer, so a hand-crafted POST

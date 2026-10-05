@@ -12,7 +12,6 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/beevik/etree"
 	crewsaml "github.com/crewjam/saml"
 )
 
@@ -192,7 +191,7 @@ func captureInbound(inspector *Inspector, logger *slog.Logger, r *http.Request) 
 		Endpoint:        r.URL.Path,
 		RelayState:      r.FormValue("RelayState"),
 		RemoteAddr:      r.RemoteAddr,
-		RawXML:          formatXML(rawXML),
+		RawXML:          rawXML,
 		Signed:          signed,
 		ServiceProvider: sp,
 	}
@@ -286,7 +285,7 @@ func captureOutbound(inspector *Inspector, tamperConfig *TamperConfig, logger *s
 		NameID:             nameID,
 		RelayState:         relayState,
 		RemoteAddr:         r.RemoteAddr,
-		RawXML:             formatXML(rawXML),
+		RawXML:             rawXML,
 		Signed:             signed,
 		AssertionSigned:    assertionSigned,
 		AssertionEncrypted: assertionEncrypted,
@@ -297,31 +296,6 @@ func captureOutbound(inspector *Inspector, tamperConfig *TamperConfig, logger *s
 		RawBase64:          rawBase64,
 	}
 	inspector.Record(exchange)
-}
-
-// formatXML indents a SAML document for the inspector's raw view.
-//
-// This goes through etree rather than an encoding/xml decoder-to-encoder round
-// trip. That round trip reported every namespace declaration both as the
-// element's resolved namespace and as a plain attribute, so the encoder emitted
-// each one twice and mangled the second copy into an "_xmlns:" pseudo-prefix.
-// The result was still only a display artifact, since the bytes on the wire
-// come from the library, but it made the pane unreadable.
-//
-// A document etree cannot parse is returned unchanged, which is what the parser
-// differential modes want anyway: their payloads are deliberately malformed and
-// are worth seeing exactly as they went out.
-func formatXML(raw string) string {
-	doc := etree.NewDocument()
-	if err := doc.ReadFromString(raw); err != nil {
-		return raw
-	}
-	doc.Indent(2)
-	formatted, err := doc.WriteToString()
-	if err != nil {
-		return raw
-	}
-	return formatted
 }
 
 func decodeSAMLRequest(encoded string) (string, error) {

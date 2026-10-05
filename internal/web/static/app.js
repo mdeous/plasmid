@@ -120,10 +120,31 @@ function toggleSignatureFold(btn, targetId) {
     btn.textContent = folded ? "Expand signatures" : "Collapse signatures";
 }
 
-function copyXML(btn, targetId) {
+// The pane is indented for reading, and XML DSig canonicalisation is
+// whitespace-sensitive, so copying what is displayed hands over something that
+// cannot verify. Fetch the verbatim bytes instead and fall back to the pane only
+// if that fetch fails, so Copy never silently does nothing.
+function copyXML(btn, targetId, exchangeId) {
     var el = document.getElementById(targetId);
-    if (!el) return;
-    copyToClipboard(el.textContent, btn);
+    function copyPane() {
+        if (el) copyToClipboard(el.textContent, btn);
+    }
+    if (!exchangeId) {
+        copyPane();
+        return;
+    }
+    fetch("/ui/inspector/" + encodeURIComponent(exchangeId) + "/raw")
+        .then(function(resp) {
+            if (!resp.ok) throw new Error("raw export returned " + resp.status);
+            return resp.text();
+        })
+        .then(function(text) { copyToClipboard(text, btn); })
+        .catch(function() {
+            // Say which bytes they are holding: the pane is indented and will
+            // not verify.
+            copyPane();
+            showToast("Raw export failed — copied the formatted pane, which will not verify", "error");
+        });
 }
 
 function showConfirmDialog(message, onConfirm) {

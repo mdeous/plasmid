@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 )
@@ -136,42 +137,6 @@ func TestInterceptMiddlewareDropsStaleModifications(t *testing.T) {
 	}
 }
 
-// The inspector's raw view used to emit every namespace declaration twice, once
-// as the element's resolved namespace and once as a leftover attribute that got
-// mangled into an "_xmlns:" pseudo-prefix.
-func TestFormatXMLKeepsNamespaceDeclarationsIntact(t *testing.T) {
-	raw := `<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"` +
-		` xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" ID="id-1">` +
-		`<saml:Issuer>https://idp.example.com/metadata</saml:Issuer>` +
-		`<samlp:Status><samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/></samlp:Status>` +
-		`</samlp:Response>`
-
-	got := formatXML(raw)
-
-	if strings.Contains(got, "_xmlns") {
-		t.Errorf("namespace declaration was mangled into a pseudo-prefix:\n%s", got)
-	}
-	if n := strings.Count(got, `xmlns:samlp=`); n != 1 {
-		t.Errorf("expected one samlp declaration, got %d:\n%s", n, got)
-	}
-	if n := strings.Count(got, `xmlns:saml=`); n != 1 {
-		t.Errorf("expected one saml declaration, got %d:\n%s", n, got)
-	}
-	if !strings.Contains(got, "<saml:Issuer>https://idp.example.com/metadata</saml:Issuer>") {
-		t.Errorf("prefixed element text did not survive indenting:\n%s", got)
-	}
-}
-
-// A malformed payload is shown exactly as it went out rather than being dropped
-// or rewritten, which is what the parser differential modes need.
-func TestFormatXMLPassesThroughUnparseableInput(t *testing.T) {
-	raw := `<samlp:Response><unclosed>`
-
-	if got := formatXML(raw); got != raw {
-		t.Errorf("expected unparseable input to be returned unchanged, got: %s", got)
-	}
-}
-
 // An encrypted assertion is reported as encrypted rather than as unsigned. The
 // library signs the assertion before sealing it, so a plain "No" here read as a
 // signing failure and sent an operator chasing a problem that did not exist.
@@ -231,5 +196,72 @@ func TestCaptureOutboundMarksPlaintextAssertionSigned(t *testing.T) {
 	}
 	if ex.NameID != "alice@example.com" {
 		t.Errorf("expected the NameID to be read, got %q", ex.NameID)
+	}
+}
+
+// The captured bytes have to be the bytes that went out. formatXML used to be
+// applied here at capture time, which destroyed the only copy of the wire form:
+// XML DSig canonicalisation is whitespace-sensitive, so an indented copy can
+// never verify and nothing extracted from the inspector was usable.
+func TestCaptureStoresResponseBytesVerbatim(t *testing.T) {
+	wire := `<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"` +
+		` xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" ID="_resp1">` +
+		`<saml:Issuer>https://idp.example.com/metadata</saml:Issuer>` +
+		`<saml:Assertion ID="_a1"><saml:Subject><saml:NameID>alice@example.com` +
+		`</saml:NameID></saml:Subject></saml:Assertion></samlp:Response>`
+
+	inspector := NewInspector(10)
+	form := fmt.Sprintf(`<form><input name="SAMLResponse" value="%s" /></form>`,
+		base64.StdEncoding.EncodeToString([]byte(wire)))
+	handler := InterceptMiddleware(inspector, NewTamperConfig(), slog.Default(),
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			fmt.Fprint(w, form)
+		}))
+	handler.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("GET", "/sso", nil))
+
+	var response *SAMLExchange
+	for _, exchange := range inspector.List() {
+		if exchange.Direction == "Response" {
+			captured := exchange
+			response = &captured
+			break
+		}
+	}
+	if response == nil {
+		t.Fatal("no Response exchange was captured")
+	}
+	if response.RawXML != wire {
+		t.Errorf("RawXML was reformatted at capture time:\n got: %s\nwant: %s", response.RawXML, wire)
+	}
+	decoded, err := base64.StdEncoding.DecodeString(response.RawBase64)
+	if err != nil {
+		t.Fatalf("decode RawBase64: %v", err)
+	}
+	if string(decoded) != response.RawXML {
+		t.Error("RawXML and RawBase64 disagree about what went over the wire")
+	}
+}
+
+// An inbound AuthnRequest is stored verbatim too. Its signature covers the
+// inflated XML, so an export of a Request has to be byte-exact as well.
+func TestCaptureStoresRequestBytesVerbatim(t *testing.T) {
+	wire := `<samlp:AuthnRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"` +
+		` xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" ID="_req1">` +
+		`<saml:Issuer>https://sp.example.com/metadata</saml:Issuer></samlp:AuthnRequest>`
+
+	inspector := NewInspector(10)
+	// A POST-binding SAMLRequest is plain base64; decodeSAMLRequest falls back
+	// to the raw bytes when inflate fails.
+	target := "/sso?SAMLRequest=" + url.QueryEscape(base64.StdEncoding.EncodeToString([]byte(wire)))
+	handler := InterceptMiddleware(inspector, NewTamperConfig(), slog.Default(),
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	handler.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("GET", target, nil))
+
+	exchanges := inspector.List()
+	if len(exchanges) == 0 {
+		t.Fatal("no exchange was captured")
+	}
+	if got := exchanges[0].RawXML; got != wire {
+		t.Errorf("RawXML was reformatted at capture time:\n got: %s\nwant: %s", got, wire)
 	}
 }

@@ -1521,3 +1521,74 @@ func TestIdPInitiatedHasNoInResponseToByDefault(t *testing.T) {
 		t.Errorf("expected no InResponseTo in an unsolicited response:\n%s", raw)
 	}
 }
+
+// The inspector is where an operator extracts a captured message from, so the
+// bytes it hands over have to be the bytes that were signed. This is the only
+// check that catches whitespace and namespace damage together: the export went
+// through an encoding/xml round trip that mangled namespace declarations, on top
+// of a stored copy that had already been indented at capture time, and a
+// response signature covers the assertion, so either one breaks both digests.
+func TestInspectorRawExportKeepsSignaturesValid(t *testing.T) {
+	env := newTestEnv(t)
+
+	// plainsp advertises no encryption certificate, so the assertion stays in
+	// the clear and its signature is visible to validate.
+	wire := loginToSP(t, env, "plainsp")
+
+	exchanges := env.inspector.List()
+	if len(exchanges) == 0 {
+		t.Fatal("no exchange recorded")
+	}
+	captured := exchanges[0]
+	if captured.Direction != "Response" {
+		t.Fatalf("expected the newest exchange to be the Response, got %q", captured.Direction)
+	}
+
+	req := httptest.NewRequest("GET", "http://127.0.0.1:8001/ui/inspector/"+captured.ID+"/raw", nil)
+	w := httptest.NewRecorder()
+	env.admin.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET raw: expected 200, got %d; body: %s", w.Code, w.Body.String())
+	}
+	exported := w.Body.String()
+
+	if strings.Contains(exported, "_xmlns") {
+		t.Errorf("the export carries pseudo-namespace attributes:\n%s", exported)
+	}
+	if exported != wire {
+		t.Errorf("the export is not the response that went out:\n got: %s\nwant: %s", exported, wire)
+	}
+	decoded, err := base64.StdEncoding.DecodeString(captured.RawBase64)
+	if err != nil {
+		t.Fatalf("decode RawBase64: %v", err)
+	}
+	if exported != string(decoded) {
+		t.Error("the export disagrees with the captured wire base64")
+	}
+
+	assertSignaturesValid(t, env, exported)
+}
+
+// The pane beside the export is indented for reading, which is exactly why the
+// export exists: the pretty copy cannot verify, and must not be mistaken for
+// something that can.
+func TestInspectorPaneIsPrettyAndStillValidXML(t *testing.T) {
+	env := newTestEnv(t)
+	loginToSP(t, env, "plainsp")
+
+	id := env.inspector.List()[0].ID
+	req := httptest.NewRequest("GET", "http://127.0.0.1:8001/ui/inspector/"+id, nil)
+	w := httptest.NewRecorder()
+	env.admin.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET detail: expected 200, got %d", w.Code)
+	}
+
+	body := w.Body.String()
+	if strings.Contains(body, "_xmlns") {
+		t.Errorf("the pane carries pseudo-namespace attributes:\n%s", body)
+	}
+	if !strings.Contains(body, `/ui/inspector/`+id+`/raw`) {
+		t.Error("the detail pane offers no link to the verbatim export")
+	}
+}

@@ -257,7 +257,7 @@ Plasmid includes a web dashboard accessible at `http://<admin-host>:<admin-port>
 - **Services** — manage registered service providers
 - **Sessions** — view and manage active sessions
 - **Shortcuts** — manage IdP-initiated login links
-- **Inspector** — view captured SAML request/response exchanges in real time
+- **Inspector** — view captured SAML request/response exchanges in real time; Download (or Copy) hands over the exact bytes that went over the wire, so an exported assertion still verifies against the IdP certificate. The pane itself is indented for reading and will not verify
 - **Tamper** — assertion tampering settings
 - **Settings** — view IdP certificate details
 

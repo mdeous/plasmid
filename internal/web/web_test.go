@@ -650,3 +650,119 @@ func TestShortcutRenameKeepsRelayState(t *testing.T) {
 		t.Error("expected the rendered row to name the target service")
 	}
 }
+
+// newInspectorTestHandler wires a WebHandler with an inspector and the inspector
+// routes, which is all the render-path tests need.
+func newInspectorTestHandler(t *testing.T) (*internalsml.Inspector, *http.ServeMux) {
+	t.Helper()
+
+	h, err := NewWebHandler(&samlidp.MemoryStore{}, nil, slog.Default(), "http://127.0.0.1:8000", nil)
+	if err != nil {
+		t.Fatalf("NewWebHandler: %v", err)
+	}
+	inspector := internalsml.NewInspector(10)
+	h.SetInspector(inspector)
+	h.SetTamperConfig(internalsml.NewTamperConfig())
+
+	mux := http.NewServeMux()
+	h.RegisterInspectorRoutes(mux)
+	return inspector, mux
+}
+
+// The pane used to be rendered through an encoding/xml round trip, which bound a
+// pseudo-prefix to the literal string "xmlns" and turned every declaration into
+// an attribute named {xmlns}saml. A schema-validating SP rejects that, and a
+// duplicated default xmlns is not even well-formed.
+func TestInspectorPaneHasNoPseudoNamespaces(t *testing.T) {
+	wire := `<samlp:Response xmlns="urn:oasis:names:tc:SAML:2.0:protocol"` +
+		` xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"` +
+		` xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" ID="_resp1">` +
+		`<saml:Issuer>https://idp.example.com/metadata</saml:Issuer></samlp:Response>`
+
+	inspector, mux := newInspectorTestHandler(t)
+	inspector.Record(internalsml.SAMLExchange{Direction: "Response", RawXML: wire})
+	id := inspector.List()[0].ID
+
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, httptest.NewRequest("GET", "/ui/inspector/"+id, nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET detail: expected 200, got %d", w.Code)
+	}
+
+	body := w.Body.String()
+	if strings.Contains(body, "_xmlns") {
+		t.Errorf("the pane still carries pseudo-namespace attributes:\n%s", body)
+	}
+	if n := strings.Count(body, `xmlns=&#34;urn:oasis:names:tc:SAML:2.0:protocol&#34;`); n != 1 {
+		t.Errorf("expected one default declaration in the pane, got %d:\n%s", n, body)
+	}
+	if !strings.Contains(body, "&lt;samlp:Response") {
+		t.Errorf("the element prefix was resolved away into a default namespace:\n%s", body)
+	}
+}
+
+// The raw export hands over the stored bytes untouched. The pane beside it is
+// indented, so this is the only place an operator can extract something that
+// still verifies.
+func TestInspectorRawExportIsByteExact(t *testing.T) {
+	wire := `<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="_resp1">` +
+		`<samlp:Status/></samlp:Response>`
+
+	inspector, mux := newInspectorTestHandler(t)
+	inspector.Record(internalsml.SAMLExchange{
+		Direction: "Response",
+		RawXML:    wire,
+		RawBase64: base64.StdEncoding.EncodeToString([]byte(wire)),
+	})
+	id := inspector.List()[0].ID
+
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, httptest.NewRequest("GET", "/ui/inspector/"+id+"/raw", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET raw: expected 200, got %d", w.Code)
+	}
+	if got := w.Body.String(); got != wire {
+		t.Errorf("raw export was re-serialised:\n got: %s\nwant: %s", got, wire)
+	}
+
+	if got := w.Header().Get("Content-Type"); got != "application/xml; charset=utf-8" {
+		t.Errorf("Content-Type = %q", got)
+	}
+	if got := w.Header().Get("Content-Disposition"); got != `attachment; filename="saml-`+id+`.xml"` {
+		t.Errorf("Content-Disposition = %q", got)
+	}
+	// The admin listener authenticates nobody, so a captured document must never
+	// be rendered as a page on its origin.
+	if got := w.Header().Get("X-Content-Type-Options"); got != "nosniff" {
+		t.Errorf("X-Content-Type-Options = %q", got)
+	}
+}
+
+// An inbound AuthnRequest exports too, though it has no RawBase64 and so cannot
+// be replayed.
+func TestInspectorRawExportsRequestDirection(t *testing.T) {
+	wire := `<samlp:AuthnRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="_req1"/>`
+
+	inspector, mux := newInspectorTestHandler(t)
+	inspector.Record(internalsml.SAMLExchange{Direction: "Request", RawXML: wire})
+	id := inspector.List()[0].ID
+
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, httptest.NewRequest("GET", "/ui/inspector/"+id+"/raw", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET raw: expected 200, got %d", w.Code)
+	}
+	if got := w.Body.String(); got != wire {
+		t.Errorf("raw export of a Request was re-serialised:\n got: %s\nwant: %s", got, wire)
+	}
+}
+
+func TestInspectorRawExportRejectsUnknownID(t *testing.T) {
+	_, mux := newInspectorTestHandler(t)
+
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, httptest.NewRequest("GET", "/ui/inspector/nope/raw", nil))
+	if w.Code != http.StatusNotFound {
+		t.Errorf("expected 404 for an unknown exchange, got %d", w.Code)
+	}
+}
