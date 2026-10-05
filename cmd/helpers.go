@@ -113,17 +113,34 @@ func stringFlagOrConfig(cmd *cobra.Command, flagName, configKey string) string {
 	return viper.GetString(configKey)
 }
 
-// warnLegacyCertExpiry flags the key cert.ca_exp_days replaced. viper ignores
-// an unknown key without a word, so a config still carrying ca_exp_years would
-// quietly get the new default instead of the lifetime it asked for - and this
-// one decides how long the IdP's credentials stay usable. Can go once nobody
-// is carrying an old config.
-func warnLegacyCertExpiry() {
-	const legacyKey = "cert.ca_exp_years"
-	if viper.IsSet(legacyKey) {
+// legacyConfigKeys maps a spelling a config file may still carry to the key
+// that replaced it. viper ignores an unknown key without a word, so a config
+// still using the old name quietly gets the new default instead of the value it
+// asked for, and these decide how long the IdP's credentials stay usable and
+// where its metadata lands. Entries can go once no old configs are in
+// circulation.
+var legacyConfigKeys = map[string]string{
+	"cert.ca_exp_years":   config.CertCaExpDays,
+	"metadata_file":       config.MetadataFile,
+	"metadata_valid_days": config.MetadataValidDays,
+}
+
+// warnLegacyConfigKeys flags a config file still using a replaced key name.
+//
+// The check is viper.InConfig rather than viper.IsSet because IsSet consults
+// the environment too, and AutomaticEnv's dot-to-underscore replacer maps
+// metadata.file onto IDP_METADATA_FILE - the very variable the new key is
+// configured with. IsSet would therefore warn on every env-configured run.
+// InConfig reads only the parsed file, which is the only place the old spelling
+// can still appear.
+func warnLegacyConfigKeys() {
+	for legacyKey, replacement := range legacyConfigKeys {
+		if !viper.InConfig(legacyKey) {
+			continue
+		}
 		logr.Warn(
-			"'"+legacyKey+"' is no longer read, use 'cert.ca_exp_days' instead",
-			"ca_exp_days", viper.GetInt(config.CertCaExpDays),
+			"'"+legacyKey+"' is no longer read, use '"+replacement+"' instead",
+			replacement, viper.Get(replacement),
 		)
 	}
 }

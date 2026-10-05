@@ -16,7 +16,7 @@ var gencertCmd = &cobra.Command{
 	Aliases: []string{"gc", "g"},
 	Short:   "Generate certificate and private key",
 	Run: func(cmd *cobra.Command, args []string) {
-		warnLegacyCertExpiry()
+		warnLegacyConfigKeys()
 
 		keyFile := viper.GetString(config.CertKeyFile)
 		certFile := viper.GetString(config.CertCertificateFile)

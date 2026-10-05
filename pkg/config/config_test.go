@@ -31,6 +31,10 @@ func TestInit_DefaultValues(t *testing.T) {
 			if gotStr := viper.GetString(key); gotStr != v {
 				t.Errorf("key %q: expected %q, got %q", key, v, gotStr)
 			}
+		case bool:
+			if gotBool := viper.GetBool(key); gotBool != v {
+				t.Errorf("key %q: expected %t, got %t", key, v, gotBool)
+			}
 		case []string:
 			gotSlice := viper.GetStringSlice(key)
 			if len(gotSlice) != len(v) {
@@ -78,6 +82,42 @@ func TestLoadFile_ValidYAML(t *testing.T) {
 	}
 }
 
+// A nested block has to reach the dotted key the rest of the code reads, and the
+// keys it does not mention have to keep their defaults. Both are what the
+// metadata: block relies on.
+func TestLoadFile_NestedBlock(t *testing.T) {
+	resetViper()
+	Init()
+
+	content := []byte("metadata:\n  file: custom-metadata.xml\n  signed: true\n")
+	tmpFile := filepath.Join(t.TempDir(), "test-config.yaml")
+	if err := os.WriteFile(tmpFile, content, 0644); err != nil {
+		t.Fatalf("failed to write temp config: %v", err)
+	}
+
+	if err := LoadFile(tmpFile); err != nil {
+		t.Fatalf("LoadFile returned unexpected error: %v", err)
+	}
+
+	if got := viper.GetString(MetadataFile); got != "custom-metadata.xml" {
+		t.Errorf("expected %q, got %q", "custom-metadata.xml", got)
+	}
+	if !viper.GetBool(MetadataSigned) {
+		t.Error("expected metadata.signed to be true")
+	}
+	// Left out of the block, so it has to fall through to the default rather than
+	// come back as the zero value of a partially populated map.
+	if got := viper.GetInt(MetadataValidDays); got != DefaultValues[MetadataValidDays] {
+		t.Errorf("expected metadata.valid_days default %v, got %d", DefaultValues[MetadataValidDays], got)
+	}
+
+	// The legacy flat spelling must not be mistaken for the new key: it is the
+	// only thing warnLegacyConfigKeys can detect.
+	if viper.InConfig("metadata_file") {
+		t.Error("metadata_file should not be in a config that only sets metadata.file")
+	}
+}
+
 func TestLoadFile_NotFound(t *testing.T) {
 	resetViper()
 	Init()
@@ -96,5 +136,26 @@ func TestEnvOverride(t *testing.T) {
 	got := viper.GetString(Host)
 	if got != "192.168.1.100" {
 		t.Errorf("expected host from env %q, got %q", "192.168.1.100", got)
+	}
+}
+
+// A nested key reaches the environment through the dot-to-underscore replacer,
+// so metadata.file is configured with the same IDP_METADATA_FILE the flat
+// metadata_file used. That is what makes moving the keys cost nothing on the env
+// side, and it is also why the legacy-key warning cannot use viper.IsSet.
+func TestEnvOverride_NestedKey(t *testing.T) {
+	resetViper()
+	t.Setenv("IDP_METADATA_FILE", "from-env.xml")
+	t.Setenv("IDP_METADATA_SIGNED", "true")
+	Init()
+
+	if got := viper.GetString(MetadataFile); got != "from-env.xml" {
+		t.Errorf("expected metadata.file from env %q, got %q", "from-env.xml", got)
+	}
+	if !viper.GetBool(MetadataSigned) {
+		t.Error("expected metadata.signed from env to be true")
+	}
+	if viper.InConfig("metadata_file") {
+		t.Error("InConfig must ignore the environment, or the legacy warning fires on every env-configured run")
 	}
 }

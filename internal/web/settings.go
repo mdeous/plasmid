@@ -29,17 +29,16 @@ var configGroupOrder = []struct {
 	Prefix string
 }{
 	{"Server", "server"},
+	{"Metadata", "metadata"},
 	{"User", "user"},
 	{"Service Provider", "sp"},
 	{"Certificate", "cert"},
 }
 
 var serverTopLevelKeys = map[string]bool{
-	"host":                true,
-	"port":                true,
-	"base_url":            true,
-	"metadata_file":       true,
-	"metadata_valid_days": true,
+	"host":     true,
+	"port":     true,
+	"base_url": true,
 }
 
 func (h *WebHandler) handleSettings(w http.ResponseWriter, r *http.Request) {

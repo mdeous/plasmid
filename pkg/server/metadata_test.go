@@ -10,8 +10,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/beevik/etree"
 	"github.com/crewjam/saml"
 	"github.com/crewjam/saml/samlidp"
+	dsig "github.com/russellhaering/goxmldsig"
+
+	internalsml "github.com/mdeous/plasmid/internal/saml"
 	"github.com/mdeous/plasmid/pkg/utils"
 )
 
@@ -166,4 +170,194 @@ func firstLine(s string) string {
 		return s[:i]
 	}
 	return s
+}
+
+// signedEnv is the test env with metadata signing on, which is opt-in.
+func signedEnv(t *testing.T, tweaks ...func(*Options)) *testEnv {
+	t.Helper()
+	all := append([]func(*Options){func(o *Options) { o.SignMetadata = true }}, tweaks...)
+	return newTestEnv(t, all...)
+}
+
+// An unsigned EntityDescriptor is valid SAML and is what plasmid has always
+// published, so nothing about the document may change until signing is asked for.
+func TestMetadataUnsignedByDefault(t *testing.T) {
+	env := newTestEnv(t)
+
+	raw, _ := parseMetadata(t, env.plasmid)
+
+	if strings.Contains(string(raw), "Signature") {
+		t.Errorf("unsigned metadata carries a signature:\n%s", raw)
+	}
+	// The ID attribute only exists to be referenced by a signature.
+	if strings.Contains(string(raw), " ID=") {
+		t.Errorf("unsigned metadata carries an ID attribute:\n%s", firstLine(string(raw)))
+	}
+}
+
+func TestMetadataSignatureValidates(t *testing.T) {
+	env := signedEnv(t)
+
+	raw, err := env.plasmid.Metadata()
+	if err != nil {
+		t.Fatalf("metadata: %v", err)
+	}
+	validateSignature(t, env, string(raw), "metadata")
+}
+
+// EntityDescriptorType's sequence is Signature?, Extensions?, then the role
+// descriptors. goxmldsig appends the signature last, which still verifies but is
+// rejected by a schema-validating SP before it ever checks the signature.
+func TestMetadataSignatureIsFirstChild(t *testing.T) {
+	env := signedEnv(t)
+
+	root := metadataRoot(t, env.plasmid)
+
+	var first *etree.Element
+	for _, child := range root.Child {
+		if el, ok := child.(*etree.Element); ok {
+			first = el
+			break
+		}
+	}
+	if first == nil {
+		t.Fatal("metadata has no child elements")
+	}
+	if first.Tag != "Signature" {
+		t.Errorf("first child element is %q, want the signature", first.Tag)
+	}
+}
+
+// goxmldsig reads the reference URI off the element's ID attribute and silently
+// falls back to a whole-document URI="" when there is none.
+func TestMetadataSignatureReferencesDescriptorID(t *testing.T) {
+	env := signedEnv(t)
+
+	root := metadataRoot(t, env.plasmid)
+
+	id := root.SelectAttrValue("ID", "")
+	if id == "" {
+		t.Fatal("signed metadata has no ID attribute")
+	}
+	// xsd:ID cannot start with a digit.
+	if !strings.HasPrefix(id, "_") {
+		t.Errorf("ID %q does not start with an underscore", id)
+	}
+
+	ref := root.FindElement("./Signature/SignedInfo/Reference")
+	if ref == nil {
+		t.Fatal("no ds:Reference in the metadata signature")
+	}
+	if got, want := ref.SelectAttrValue("URI", ""), "#"+id; got != want {
+		t.Errorf("reference URI = %q, want %q", got, want)
+	}
+}
+
+// The endpoint, the startup export and the dashboard's copy all go through
+// Metadata, and an SP that tracks metadata by ID must not see one document as
+// several.
+func TestMetadataIDStableAcrossCalls(t *testing.T) {
+	env := signedEnv(t)
+
+	first := metadataRoot(t, env.plasmid).SelectAttrValue("ID", "")
+	second := metadataRoot(t, env.plasmid).SelectAttrValue("ID", "")
+	if first == "" || first != second {
+		t.Errorf("metadata ID changed between calls: %q then %q", first, second)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/metadata", nil)
+	rec := httptest.NewRecorder()
+	env.handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET /metadata = %d, want 200", rec.Code)
+	}
+	served := etree.NewDocument()
+	if err := served.ReadFromBytes(rec.Body.Bytes()); err != nil {
+		t.Fatalf("parse served metadata: %v", err)
+	}
+	if got := served.Root().SelectAttrValue("ID", ""); got != first {
+		t.Errorf("endpoint ID = %q, want the exported %q", got, first)
+	}
+	validateSignature(t, env, rec.Body.String(), "served metadata")
+}
+
+// An explicit signature_method has to reach the metadata too, so a downgrade
+// probe covers the whole published surface.
+func TestMetadataSignatureFollowsSignatureMethod(t *testing.T) {
+	env := signedEnv(t, func(o *Options) { o.SignatureMethod = dsig.RSASHA512SignatureMethod })
+
+	root := metadataRoot(t, env.plasmid)
+
+	method := root.FindElement("./Signature/SignedInfo/SignatureMethod")
+	if method == nil {
+		t.Fatal("no ds:SignatureMethod in the metadata signature")
+	}
+	if got := method.SelectAttrValue("Algorithm", ""); got != dsig.RSASHA512SignatureMethod {
+		t.Errorf("signature method = %q, want %q", got, dsig.RSASHA512SignatureMethod)
+	}
+	validateSignature(t, env, metadataString(t, env.plasmid), "metadata")
+}
+
+// An empty signature_method means "leave crewjam/saml's default alone", and the
+// library has no metadata signing to leave alone. Falling back to its RSA-SHA1
+// response default would have the document rejected for a reason nobody chose.
+func TestMetadataSignatureDefaultsToSHA256(t *testing.T) {
+	env := signedEnv(t, func(o *Options) { o.SignatureMethod = "" })
+
+	root := metadataRoot(t, env.plasmid)
+
+	method := root.FindElement("./Signature/SignedInfo/SignatureMethod")
+	if method == nil {
+		t.Fatal("no ds:SignatureMethod in the metadata signature")
+	}
+	if got := method.SelectAttrValue("Algorithm", ""); got != dsig.RSASHA256SignatureMethod {
+		t.Errorf("signature method = %q, want %q", got, dsig.RSASHA256SignatureMethod)
+	}
+}
+
+// GET /metadata is wrapped in the intercept middleware, which buffers and
+// rewrites the whole body whenever the tamper config needs a response rewrite.
+// The rewrite is a no-op on metadata, and has to stay one: anything that
+// re-serializes the document invalidates the signature.
+func TestMetadataSignatureSurvivesTamperMiddleware(t *testing.T) {
+	env := signedEnv(t)
+
+	env.tamper.Update(internalsml.TamperUpdateInput{Enabled: true, RelayState: "tampered"})
+	if !env.tamper.NeedsResponseRewrite() {
+		t.Fatal("tamper config does not need a response rewrite, the middleware would not buffer")
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/metadata", nil)
+	rec := httptest.NewRecorder()
+	env.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET /metadata = %d, want 200", rec.Code)
+	}
+	validateSignature(t, env, rec.Body.String(), "metadata through the middleware")
+}
+
+func metadataString(t *testing.T, p *Plasmid) string {
+	t.Helper()
+	raw, err := p.Metadata()
+	if err != nil {
+		t.Fatalf("metadata: %v", err)
+	}
+	return string(raw)
+}
+
+// metadataRoot parses the document as etree rather than through
+// saml.EntityDescriptor: its Signature field is an *etree.Element that
+// encoding/xml cannot represent, so an unmarshalled struct loses the signature.
+func metadataRoot(t *testing.T, p *Plasmid) *etree.Element {
+	t.Helper()
+	doc := etree.NewDocument()
+	if err := doc.ReadFromString(metadataString(t, p)); err != nil {
+		t.Fatalf("parse metadata: %v", err)
+	}
+	root := doc.Root()
+	if root == nil {
+		t.Fatal("metadata has no root element")
+	}
+	return root
 }

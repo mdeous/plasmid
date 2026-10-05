@@ -1394,28 +1394,30 @@ func TestAssertionKeepsSubjectAddressWhenRequested(t *testing.T) {
 func assertSignaturesValid(t *testing.T, env *testEnv, raw string) {
 	t.Helper()
 
-	store := dsig.MemoryX509CertificateStore{Roots: []*x509.Certificate{env.plasmid.cert}}
-	ctx := dsig.NewDefaultValidationContext(&store)
-
-	doc := etree.NewDocument()
-	if err := doc.ReadFromString(raw); err != nil {
-		t.Fatalf("parse response: %v", err)
-	}
-	if _, err := ctx.Validate(doc.Root()); err != nil {
-		t.Errorf("response signature did not validate: %v", err)
-	}
+	validateSignature(t, env, raw, "response")
 
 	start := strings.Index(raw, "<saml:Assertion")
 	end := strings.Index(raw, "</saml:Assertion>")
 	if start < 0 || end < 0 {
 		t.Fatal("no plaintext assertion to validate")
 	}
-	assertionDoc := etree.NewDocument()
-	if err := assertionDoc.ReadFromString(raw[start : end+len("</saml:Assertion>")]); err != nil {
-		t.Fatalf("parse assertion: %v", err)
+	validateSignature(t, env, raw[start:end+len("</saml:Assertion>")], "assertion")
+}
+
+// validateSignature checks one document's enveloped signature against the IdP
+// certificate. Shared with the metadata tests, which sign the same way.
+func validateSignature(t *testing.T, env *testEnv, raw, what string) {
+	t.Helper()
+
+	store := dsig.MemoryX509CertificateStore{Roots: []*x509.Certificate{env.plasmid.cert}}
+	ctx := dsig.NewDefaultValidationContext(&store)
+
+	doc := etree.NewDocument()
+	if err := doc.ReadFromString(raw); err != nil {
+		t.Fatalf("parse %s: %v", what, err)
 	}
-	if _, err := ctx.Validate(assertionDoc.Root()); err != nil {
-		t.Errorf("assertion signature did not validate: %v", err)
+	if _, err := ctx.Validate(doc.Root()); err != nil {
+		t.Errorf("%s signature did not validate: %v", what, err)
 	}
 }
 

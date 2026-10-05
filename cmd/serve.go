@@ -33,7 +33,7 @@ var serveCmd = &cobra.Command{
 			err     error
 		)
 
-		warnLegacyCertExpiry()
+		warnLegacyConfigKeys()
 
 		keyFile := stringFlagOrConfig(cmd, "key-file", config.CertKeyFile)
 		_, err = os.Stat(keyFile)
@@ -177,6 +177,7 @@ var serveCmd = &cobra.Command{
 			IncludeSubjectAddress: viper.GetBool(config.IncludeSubjectAddr),
 			SendUnencrypted:       viper.GetBool(config.SendUnencrypted),
 			MetadataValidDays:     metadataValidDays,
+			SignMetadata:          viper.GetBool(config.MetadataSigned),
 		})
 		if err != nil {
 			return err
@@ -193,7 +194,7 @@ var serveCmd = &cobra.Command{
 			if err = os.WriteFile(metadataFile, meta, 0644); err != nil {
 				return err
 			}
-			logr.Info("metadata saved", "file", metadataFile)
+			logr.Info("metadata saved", "file", metadataFile, "signed", viper.GetBool(config.MetadataSigned))
 		} else {
 			logr.Info("metadata export skipped, serving it on /metadata only")
 		}
@@ -268,6 +269,13 @@ func init() {
 		ConfigField: config.MetadataFile,
 	}
 	f.BindString()
+	f = &Flag{
+		Command:     serveCmd,
+		Name:        "metadata-signed",
+		Usage:       "sign the published IdP metadata, for an SP that refuses to load it unsigned",
+		ConfigField: config.MetadataSigned,
+	}
+	f.BindBool()
 	f = &Flag{
 		Command:     serveCmd,
 		Name:        "metadata-valid-days",

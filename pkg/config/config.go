@@ -37,8 +37,9 @@ const (
 	SignatureMethod     = "signature_method"
 	IncludeSubjectAddr  = "include_subject_address"
 	SendUnencrypted     = "send_unencrypted"
-	MetadataFile        = "metadata_file"
-	MetadataValidDays   = "metadata_valid_days"
+	MetadataFile        = "metadata.file"
+	MetadataSigned      = "metadata.signed"
+	MetadataValidDays   = "metadata.valid_days"
 )
 
 var DefaultValues = map[string]any{
@@ -82,9 +83,13 @@ var DefaultValues = map[string]any{
 	// encryption certificate is a deviation from what it asked for, so it is
 	// off by default and reported as a tamper modification when on.
 	SendUnencrypted: false,
-	// metadata_file is where the IdP metadata document is exported at startup.
+	// metadata.file is where the IdP metadata document is exported at startup.
 	// Empty skips the export, leaving GET /metadata as the only way to get it.
 	MetadataFile: "idp-metadata.xml",
+	// An unsigned EntityDescriptor is valid SAML and is what plasmid has always
+	// published, so signing is opt-in. Turn it on for an SP that refuses to load
+	// unsigned metadata.
+	MetadataSigned: false,
 	// crewjam/saml advertises validUntil 48h out and never looks at the signing
 	// certificate, so an instance meant to survive an assessment publishes
 	// metadata that expires days before its key material does. Zero means track

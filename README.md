@@ -140,6 +140,8 @@ ngrok http 8000
 
 - Using the generated `idp-metadata.xml` file (or the `<base-url>/metadata` URL), register the plasmid
   instance on the service provider you want to test
+  - If the service provider refuses to load unsigned metadata, restart with `--metadata-signed`
+    (or `metadata.signed: true`) and register the document again
 - In [`SAMLRaider`](https://github.com/portswigger/saml-raider), import the certificate and private key
 - You can begin testing the service provider and login using `admin:Password123`
 

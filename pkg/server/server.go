@@ -20,6 +20,7 @@ import (
 
 	"github.com/crewjam/saml"
 	"github.com/crewjam/saml/samlidp"
+	dsig "github.com/russellhaering/goxmldsig"
 	"golang.org/x/crypto/bcrypt"
 
 	internalsml "github.com/mdeous/plasmid/internal/saml"
@@ -50,6 +51,14 @@ type Plasmid struct {
 	// metadataValidDays overrides the validUntil the metadata advertises. Zero
 	// tracks the signing certificate's NotAfter.
 	metadataValidDays int
+	// signMetadata puts an XMLDSig signature on the published EntityDescriptor.
+	signMetadata bool
+	// metadataID is the EntityDescriptor's ID attribute, which the metadata
+	// signature references. Generated once per process rather than per call: the
+	// endpoint, the startup export and the dashboard's copy all go through
+	// Metadata, and a fresh ID each time would make one document look like
+	// several to an SP that tracks metadata by ID.
+	metadataID string
 }
 
 // adminUrl is the address an operator reaches the dashboard on. A wildcard
@@ -103,11 +112,34 @@ func (p *Plasmid) Metadata() ([]byte, error) {
 	// document stops being valid — and keeping it short is what lets an SP pick
 	// up a regenerated certificate mid-assessment.
 
+	// The signature references the descriptor by ID, and goxmldsig falls back to
+	// a bare URI="" when the element carries none. Set only when signing, so the
+	// unsigned document stays exactly what it has always been.
+	if p.signMetadata {
+		metaDescriptor.ID = p.metadataID
+	}
+
 	meta, err := xml.MarshalIndent(metaDescriptor, "", " ")
 	if err != nil {
 		return []byte{}, fmt.Errorf("failed to serialize idp metadata: %v", err)
 	}
-	return meta, nil
+	if !p.signMetadata {
+		return meta, nil
+	}
+	return signMetadata(meta, p.key, p.cert, p.metadataSignatureMethod())
+}
+
+// metadataSignatureMethod is the algorithm the metadata signature uses. An empty
+// signature_method means "leave crewjam/saml's own default alone", and the
+// library has no metadata signing to leave alone, so falling back to its RSA-SHA1
+// response default would get the document rejected for a reason nobody chose. An
+// explicit method is honoured, SHA-1 included, so a downgrade probe still covers
+// the metadata.
+func (p *Plasmid) metadataSignatureMethod() string {
+	if method := p.IDP.IDP.SignatureMethod; method != "" {
+		return method
+	}
+	return dsig.RSASHA256SignatureMethod
 }
 
 func (p *Plasmid) loggingMiddleware(next http.Handler) http.Handler {
@@ -501,6 +533,12 @@ type Options struct {
 	// a pinned certificate and the document advertising it from disagreeing. A
 	// positive value overrides that, to probe an SP that enforces validUntil.
 	MetadataValidDays int
+	// SignMetadata puts an enveloped XMLDSig signature on the published
+	// EntityDescriptor, with the same key and algorithm assertions are signed
+	// with. Off by default: an unsigned descriptor is valid SAML and is what
+	// plasmid has always served. Turn it on for an SP that refuses to load
+	// unsigned metadata.
+	SignMetadata bool
 }
 
 func New(opts Options) (*Plasmid, error) {
@@ -561,5 +599,9 @@ func New(opts Options) (*Plasmid, error) {
 		includeSubjectAddress: opts.IncludeSubjectAddress,
 		sendUnencrypted:       opts.SendUnencrypted,
 		metadataValidDays:     opts.MetadataValidDays,
+		signMetadata:          opts.SignMetadata,
+		// Prefixed with an underscore because the schema types this as xsd:ID,
+		// which cannot start with a digit.
+		metadataID: "_" + hex.EncodeToString(randomBytes(16)),
 	}, nil
 }
